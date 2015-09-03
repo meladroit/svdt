@@ -25,6 +25,7 @@ typedef struct lsDir
     char thisDir[MAX_PATH_LENGTH];
     char fullDir[MAX_PATH_LENGTH];
     Handle thisDirHandle;
+    int dirEntryCount;
     struct lsLine* firstLine;
     struct lsDir* parentDir;
 } lsDir;
@@ -73,6 +74,7 @@ void initDir(lsDir* dir, FS_archive* archive, Handle* fsHandle, char* path, lsDi
         strcat(dir->fullDir,"/");
     }
     dir->thisDirHandle = dirHandle;
+    dir->dirEntryCount = 0;
     // cribbing from 3ds_hb_menu again
     u32 entriesRead;
     lsLine* lastLine = NULL;
@@ -85,7 +87,7 @@ void initDir(lsDir* dir, FS_archive* archive, Handle* fsHandle, char* path, lsDi
         FSDIR_Read(dirHandle, &entriesRead, 1, &entry);
         unicodeToChar(pathname,entry.name,MAX_PATH_LENGTH);
         //printf("%s\n",pathname);
-        if(entriesRead)
+        if(entriesRead && (HEIGHT-5>dir->dirEntryCount))
         {
             lsLine* tempLine = (lsLine*)malloc(sizeof(lsLine));
             strncpy(tempLine->thisLine,pathname,MAX_PATH_LENGTH);
@@ -99,6 +101,7 @@ void initDir(lsDir* dir, FS_archive* archive, Handle* fsHandle, char* path, lsDi
                 dir->firstLine = tempLine;
             }
             lastLine = tempLine;
+            dir->dirEntryCount++;
         }
     }while (entriesRead);
 }
@@ -171,8 +174,8 @@ Result FSUSER_ControlArchive(Handle handle, FS_archive archive)
 }
 
 const char HOME[2] = "/";
-const char SDMC_CURSOR[4] = "***";
-const char SAVE_CURSOR[4] = "***";
+const char SDMC_CURSOR[4] = "<<<";
+const char SAVE_CURSOR[4] = ">>>";
 const char NULL_CURSOR[4] = "   ";
 
 enum state
@@ -182,6 +185,46 @@ enum state
     CONFIRM_DELETE,
     CONFIRM_OVERWRITE
 };
+enum state machine_state;
+
+PrintConsole titleBar, sdmcList, saveList, sdmcCursor, saveCursor;
+PrintConsole statusBar, instructions;
+
+void redrawCursor(int* cursor_y, int currentEntryCount)
+{
+    if (*cursor_y<0)
+        *cursor_y = 0;
+    int cursor_y_bound = HEIGHT-4;
+    if (currentEntryCount+1<cursor_y_bound)
+        cursor_y_bound = currentEntryCount+1;
+    if (*cursor_y>cursor_y_bound)
+        *cursor_y = cursor_y_bound;
+    switch(machine_state)
+    {
+        case SELECT_SAVE:
+            consoleSelect(&saveCursor);
+            consoleClear();
+            gotoxy(0,*cursor_y);
+            printf(SAVE_CURSOR);
+            break;
+        case SELECT_SDMC:
+            consoleSelect(&sdmcCursor);
+            consoleClear();
+            gotoxy(0,*cursor_y);
+            printf(SDMC_CURSOR);
+            break;
+        default:
+            break;
+    }
+}
+
+void debugOut(char* garbled)
+{
+    consoleSelect(&statusBar);
+    consoleClear();
+    textcolour(NEONGREEN);
+    printf(garbled);
+}
 
 int main()
 {
@@ -190,8 +233,6 @@ int main()
 
 	filesystemInit();
 
-	PrintConsole titleBar, sdmcList, saveList, sdmcCursor, saveCursor;
-    PrintConsole statusBar, instructions;
 	consoleInit(GFX_TOP, &titleBar);
 	consoleInit(GFX_TOP, &sdmcList);
 	consoleInit(GFX_TOP, &saveList);
@@ -201,9 +242,9 @@ int main()
 	consoleInit(GFX_BOTTOM, &instructions);
 
     consoleSetWindow(&titleBar,0,0,TOP_WIDTH,HEIGHT);
-    //consoleSetWindow(&saveCursor,0,3,3,HEIGHT-3);
+    consoleSetWindow(&saveCursor,0,3,3,HEIGHT-3);
     consoleSetWindow(&saveList,CURSOR_WIDTH,3,LIST_WIDTH,HEIGHT-3);
-    //consoleSetWindow(&sdmcCursor,TOP_WIDTH-CURSOR_WIDTH,3,CURSOR_WIDTH,HEIGHT-3);
+    consoleSetWindow(&sdmcCursor,TOP_WIDTH-CURSOR_WIDTH,3,CURSOR_WIDTH,HEIGHT-3);
     consoleSetWindow(&sdmcList,TOP_WIDTH/2,3,LIST_WIDTH,HEIGHT-3);
     consoleSetWindow(&statusBar,0,0,BOTTOM_WIDTH,2);
     consoleSetWindow(&instructions,0,3,BOTTOM_WIDTH,HEIGHT-2);
@@ -230,23 +271,28 @@ int main()
     
     consoleSelect(&instructions);
     textcolour(WHITE);
-    wordwrap("svdt is tdvs, reversed and without vowels. Use it to transfer files between your SD card and your save data.\n",BOTTOM_WIDTH);
-    wordwrap("* Press L/R to point at a file from save/SD data.\n",BOTTOM_WIDTH);
-    wordwrap("* Press X to delete file.\n",BOTTOM_WIDTH);
-    wordwrap("* Press A to copy file/folder to other data.\n",BOTTOM_WIDTH);
+    wordwrap("svdt is tdvs, reversed and without vowels. Use it to transfer files between your SD card and your save data. If you don't see any save data, restart until you can select a target app.\n",BOTTOM_WIDTH);
+    wordwrap("* Press L/R to point at save/SD data, and up/down to point at a specific file or folder.\n",BOTTOM_WIDTH);
+    wordwrap("* Press X to delete file. (Deleting folders is purposefully omitted here.)\n",BOTTOM_WIDTH);
+    wordwrap("* Press A to navigate inside a folder. Press B to return to the parent folder, if there is one.\n",BOTTOM_WIDTH);
+    wordwrap("* Press Y to copy selected file/folder to the working directory of the other data.\n",BOTTOM_WIDTH);
     wordwrap("* Press START to stop while you're ahead.\n",BOTTOM_WIDTH);
     
     consoleSelect(&statusBar);
     textcolour(NEONGREEN);
-    printf("Successful startup, I guess. Huh.");
+    debugOut("Successful startup, I guess. Huh.");
 
-    enum state machine_state = SELECT_SDMC;
-    //consoleSelect(&sdmcCursor);
-    //consoleClear();
-    consoleSelect(&titleBar);
-    gotoxy(TOP_WIDTH-3,3);//gotoxy(0,0);
+    machine_state = SELECT_SDMC;
+    consoleSelect(&sdmcCursor);
+    consoleClear();
+    gotoxy(0,0);
     printf(SDMC_CURSOR);
     int cursor_y = 0;
+    int currentEntryCount = cwd_sdmc.dirEntryCount;
+    lsDir* ccwd = &cwd_sdmc;
+    PrintConsole* curList = &sdmcList;
+    Handle* curFsHandle = &sdmcFsHandle;
+    FS_archive* curArchive = &sdmcArchive;
             
 	while (aptMainLoop())
 	{
@@ -254,30 +300,104 @@ int main()
 		if(hidKeysDown() & KEY_START)break;
         if(hidKeysDown() & (KEY_L | KEY_DLEFT))
         {
-            //consoleSelect(&sdmcCursor);
-            //consoleClear();
-            //consoleSelect(&saveCursor);
-            //consoleClear();
-            consoleSelect(&titleBar);
-            //gotoxy(0,0);
-            gotoxy(TOP_WIDTH-3,3+cursor_y);
-            printf(NULL_CURSOR);
-            gotoxy(0,3);
-            printf(SAVE_CURSOR);
+            consoleSelect(&sdmcCursor);
+            consoleClear();
             machine_state = SELECT_SAVE;
+            currentEntryCount = cwd_save.dirEntryCount;
+            redrawCursor(&cursor_y,currentEntryCount);
+            ccwd = &cwd_save;
+            curList = &saveList;
+            curFsHandle = &saveGameFsHandle;
+            curArchive = &saveGameArchive;
         }
         if(hidKeysDown() & (KEY_R | KEY_DRIGHT))
         {
-            //consoleSelect(&saveCursor);
-            //consoleClear();
-            //consoleSelect(&sdmcCursor);
-            //consoleClear();
-            //gotoxy(0,0);
-            gotoxy(0,3+cursor_y);
-            printf(NULL_CURSOR);
-            gotoxy(TOP_WIDTH-3,3+cursor_y);
-            printf(SDMC_CURSOR);
+            consoleSelect(&saveCursor);
+            consoleClear();
             machine_state = SELECT_SDMC;
+            currentEntryCount = cwd_sdmc.dirEntryCount;
+            redrawCursor(&cursor_y,currentEntryCount);
+            ccwd = &cwd_sdmc;
+            curList = &sdmcList;
+            curFsHandle = &sdmcFsHandle;
+            curArchive = &sdmcArchive;
+        }
+        if(hidKeysDown() & (KEY_UP))
+        {
+            cursor_y--;
+            redrawCursor(&cursor_y,currentEntryCount);
+        }
+        if(hidKeysDown() & (KEY_DOWN))
+        {
+            cursor_y++;
+            redrawCursor(&cursor_y,currentEntryCount);
+        }
+        if(hidKeysDown() & KEY_A)
+        {
+            debugOut("creating lsDir pointer");
+            lsDir* temp_ccwd = (lsDir*)malloc(sizeof(lsDir));
+            memset(temp_ccwd,0,sizeof(lsDir));
+            int directory_was_selected = 0;
+            switch (cursor_y)
+            {
+                case 0:
+                    debugOut("cursor_y = 0, so nothing happens");
+                    break;
+                case 1:
+                    debugOut("cursor_y = 1, so we check for parent");
+                    if(ccwd->parentDir)
+                    {
+                        directory_was_selected = 1;
+                        debugOut("we have parent, so moving to temp");
+                        temp_ccwd = ccwd->parentDir;
+                        debugOut("freeDir");
+                        freeDir(ccwd);
+                        debugOut("free");
+                        free(ccwd);
+                        debugOut("and now some formalities");
+                        ccwd = temp_ccwd;
+                        currentEntryCount = ccwd->dirEntryCount;
+                    }
+                    break;
+                default: ;
+                    debugOut("presumably a random entry was clicked");
+                    lsLine* selection = ccwd->firstLine;
+                    int i;
+                    for (i=1;i<cursor_y-2;i++)
+                    {
+                        selection = selection->nextLine;
+                    }
+                    debugOut("we should be a good number of entries down the line");
+                    if (selection->isDirectory)
+                    {
+                        directory_was_selected = 1;
+                        consoleSelect(&statusBar);
+                        textcolour(NEONGREEN);
+                        printf("isDirectory is %d",(int)(selection->isDirectory));
+                        debugOut("moving to initDir");
+                        initDir(temp_ccwd,curArchive,curFsHandle,selection->thisLine,ccwd);
+                    }
+                    break;
+            }
+            if(directory_was_selected)
+            {
+                ccwd = temp_ccwd;
+                currentEntryCount = ccwd->dirEntryCount;
+                consoleSelect(curList);
+                printDir(ccwd);
+                
+                switch (machine_state)
+                {
+                    case SELECT_SAVE:
+                        cwd_save = *ccwd;
+                        break;
+                    case SELECT_SDMC:
+                        cwd_sdmc = *ccwd;
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
         switch (machine_state)
         {
