@@ -58,9 +58,15 @@ void gotoParentDirectory(lsDir* dir)
 
 void gotoSubDirectory(lsDir* dir, char* basename)
 {
+    if (!dir || !basename) return;
     char* cwd = dir->thisDir;
     cwd = strcat(cwd,basename);
-    cwd = strcat(cwd,"/");
+    if (cwd[strlen(cwd+1)] != '/')
+    {
+        //printf("\nappending slash");
+        cwd = strcat(cwd,"/");
+    }
+    printf("\nsubdir path: %s\n",cwd);
 }
 
 char* lsDirBasename(lsDir* dir)
@@ -71,7 +77,7 @@ char* lsDirBasename(lsDir* dir)
     char* baseidx2 = strrchr(dir->thisDir,'/');
     while (baseidx!=baseidx2)
     {
-        ret = baseidx;
+        ret = baseidx+1;
         baseidx = strchr(baseidx+1,'/');
     }
     return ret;
@@ -134,12 +140,13 @@ enum state
     SELECT_SAVE,
     CONFIRM_DELETE,
     CONFIRM_OVERWRITE,
+    SVDT_IS_KILL
 };
 enum state machine_state;
 enum state previous_state;
 
 PrintConsole titleBar, sdmcList, saveList, sdmcCursor, saveCursor;
-PrintConsole statusBar, instructions;
+PrintConsole statusBar;//, instructions;
 
 void debugOut(char* garbled)
 {
@@ -222,13 +229,14 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
         printf("result code %08x\n",(unsigned int)res);
         if(res==RES_OUT_OF_SPACE_CARD || res==RES_OUT_OF_SPACE_ESHOP)
             printf("(you may be running out of save space!)\n");
+        machine_state = SVDT_IS_KILL;
         return;
     }
     debugOut("success!");
     free(data);
 }
 
-void copyDir(lsDir* dir, char* path, lsDir* destDir)
+void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
 {
     if (!dir || !destDir) return;
     Handle* curFsHandle = NULL;
@@ -238,10 +246,10 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir)
     
     char origpath[MAX_PATH_LENGTH] = {0};
     char destpath[MAX_PATH_LENGTH] = {0};
-    char timeStr[16] = {0};
     strncpy(origpath,dir->thisDir,MAX_PATH_LENGTH);
-    strcat(origpath,path);
-    debugOut("constructing paths");
+    if (path)
+        strcat(origpath,path);
+    debugOut("constructing paths:");
     strncpy(destpath,destDir->thisDir,MAX_PATH_LENGTH);
     printf("origpath %s\n",origpath);
     switch(machine_state)
@@ -262,31 +270,46 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir)
             break;
     }
     debugOut("got handles");
-    if (!path)
+    //debugOut("manipulating destDir->thisDir");
+    //printf("currently %s\n",destDir->thisDir);
+    if (destName)
     {
-        time_t temps = time(NULL);
-        strftime(timeStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
-        strcat(destpath,timeStr);
+        strcat(destpath,destName);
         FSUSER_CreateDirectory(destFsHandle,*destArchive,FS_makePath(PATH_CHAR,destpath));
-        gotoSubDirectory(destDir,timeStr);
+        gotoSubDirectory(destDir,destName);
     } else {
-        strcat(destpath,path);
-        FSUSER_CreateDirectory(destFsHandle,*destArchive,FS_makePath(PATH_CHAR,destpath));
-        gotoSubDirectory(destDir,path);
+        if (path)
+        {
+            strcat(destpath,path);
+            FSUSER_CreateDirectory(destFsHandle,*destArchive,FS_makePath(PATH_CHAR,destpath));
+            gotoSubDirectory(destDir,path);
+        }
     }
-    printf("destpath %s",destpath);
-    gotoSubDirectory(dir,path);
+    if(destArchive==&saveGameArchive)
+    {
+        printf("\ncalling ControlArchive\n");
+        FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
+    }
+    if (path)
+        gotoSubDirectory(dir,path);
+    //printf("currently %s\n",destDir->thisDir);
+    //printf("destpath %s",destpath);
     scanDir(dir,curArchive,curFsHandle);
     lsLine* curLine = dir->firstLine;
-    while (curLine)
+    while (curLine && (machine_state!=SVDT_IS_KILL))
     {
         if (curLine->isDirectory)
-            copyDir(dir,curLine->thisLine,destDir);
+        {
+            copyDir(dir,curLine->thisLine,destDir,NULL);
+        }
         else
+        {
             copyFile(dir,curLine->thisLine,curLine->fileSize,destDir);
+        }    
         curLine = curLine->nextLine;
     }
-    gotoParentDirectory(dir);
+    if (path)
+        gotoParentDirectory(dir);
     gotoParentDirectory(destDir);
 }
 
@@ -432,14 +455,15 @@ void redrawCursor(int* cursor_y, lsDir* dir)
 
 void printInstructions()
 {
-    consoleSelect(&instructions);
+    consoleSelect(&statusBar);
     consoleClear();
     textcolour(WHITE);
     wordwrap("svdt is tdvs, reversed and without vowels. Use it to transfer files between your SD card and your save data. (Directories marked in purple.) If you don't see any save data, restart until you can select a target app.\n",BOTTOM_WIDTH);
     wordwrap("> Press L/R to point at save/SD data, and up/down to point at a specific file or folder.\n",BOTTOM_WIDTH);
-    wordwrap("> Press X to delete file. (Deleting folders is purposefully omitted here.)\n",BOTTOM_WIDTH);
+    wordwrap("> Press X to delete file or folder.\n",BOTTOM_WIDTH);
     wordwrap("> Press A to navigate inside a folder. Press B to return to the parent folder, if there is one.\n",BOTTOM_WIDTH);
-    wordwrap("> Press Y to copy selected file/folder to the working directory of the other data.\n",BOTTOM_WIDTH);
+    wordwrap("> Press Y to copy selected file/folder to the working directory of the other data. Use the topmost listing to dump working directory.\n",BOTTOM_WIDTH);
+    wordwrap("> Press SELECT to reprint these instructions at any time.\n",BOTTOM_WIDTH);
     wordwrap("> Press START to stop while you're ahead.\n",BOTTOM_WIDTH);
 }
 
@@ -456,7 +480,7 @@ int main()
 	consoleInit(GFX_TOP, &sdmcCursor);
 	consoleInit(GFX_TOP, &saveCursor);
 	consoleInit(GFX_BOTTOM, &statusBar);
-	consoleInit(GFX_BOTTOM, &instructions);
+	//consoleInit(GFX_BOTTOM, &instructions);
 
     consoleSetWindow(&titleBar,0,0,TOP_WIDTH,HEIGHT);
     consoleSetWindow(&saveCursor,0,3,3,HEIGHT-3);
@@ -464,12 +488,12 @@ int main()
     consoleSetWindow(&sdmcCursor,TOP_WIDTH/2,3,CURSOR_WIDTH,HEIGHT-3);
     consoleSetWindow(&sdmcList,TOP_WIDTH/2+CURSOR_WIDTH,3,LIST_WIDTH,HEIGHT-3);
     consoleSetWindow(&statusBar,0,0,BOTTOM_WIDTH,HEIGHT);//8);
-    consoleSetWindow(&instructions,0,8,BOTTOM_WIDTH,HEIGHT-2);
+    //consoleSetWindow(&instructions,0,8,BOTTOM_WIDTH,HEIGHT-2);
     
 	consoleSelect(&titleBar);
     textcolour(SALMON);
-    printf("svdt 0.00001\n");
-    printf("meladroit/willidleaway at your service\n");
+    printf("svdt 0.1, meladroit/willidleaway\n");
+    printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);
     printf("save data:");
@@ -487,10 +511,9 @@ int main()
     machine_state = SELECT_SDMC;
     printDir(&cwd_sdmc);
     
-    //printInstructions();
+    printInstructions();
     
     consoleSelect(&statusBar);
-    textcolour(NEONGREEN);
     debugOut("Successful startup, I guess. Huh.");
 
     consoleSelect(&sdmcCursor);
@@ -513,6 +536,26 @@ int main()
 	while (aptMainLoop())
 	{
 		hidScanInput();
+		if(hidKeysDown() & KEY_START)break;
+        if(machine_state == SVDT_IS_KILL)
+        {
+            if(previous_state != SVDT_IS_KILL)
+            {
+                consoleSelect(&statusBar);
+                int i;
+                for (i=0;i<5;i++)
+                {                
+                    textcolour((enum colour)((1+i*6)%16));
+                    wordwrap("svdt has encountered an error, and has halted to protect your data. Press START to exit.\n", BOTTOM_WIDTH);
+                }
+                previous_state = SVDT_IS_KILL;
+            }
+            gspWaitForVBlank();
+            // Flush and swap framebuffers
+            gfxFlushBuffers();
+            gfxSwapBuffers();
+            continue;
+        }
         int cwd_needs_update = 0;
         int notccwd_needs_update = 0;
         sdmcPrevious = sdmcCurrent; 
@@ -531,7 +574,10 @@ int main()
                 printInstructions();
             }
         }
-		if(hidKeysDown() & KEY_START)break;
+        if(hidKeysDown() & KEY_SELECT)
+        {
+            printInstructions();
+        }
         if(hidKeysDown() & KEY_X)
         {
             switch (machine_state)
@@ -600,17 +646,22 @@ int main()
                 switch (cursor_y)
                 {
                     case 0:
-                        if (strcmp("/",(const char*)ccwd->thisDir))
+                        if (!strcmp("/",(const char*)ccwd->thisDir))
                         {
-                            debugOut("dumping root");
-                            copyDir(ccwd,NULL,notccwd);
+                            debugOut("dumping root");            
+                            char timeStr[16] = {0};                                    
+                            time_t temps = time(NULL);
+                            strftime(timeStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
+                            printf("using timestamp %s",timeStr);
+                            copyDir(ccwd,NULL,notccwd,timeStr);
                         }
                         else
                         {
                             debugOut("dumping subdirectory");
                             printf("using basename %s",lsDirBasename(ccwd));
-                            copyDir(ccwd,lsDirBasename(ccwd),notccwd);
+                            copyDir(ccwd,NULL,notccwd,lsDirBasename(ccwd));
                         }
+                        notccwd_needs_update = 1;
                         break;
                     case 1:
                         if (!ccwd->lsOffset)
@@ -625,7 +676,7 @@ int main()
                         printf(" isDir: %d",(int)selection->isDirectory);
                         if(selection->isDirectory)
                         {
-                            copyDir(ccwd,selection->thisLine,notccwd);
+                            copyDir(ccwd,selection->thisLine,notccwd,NULL);
                             notccwd_needs_update = 1;
                         } else {
                             if (detectOverwrite(selection->thisLine,notccwd))
@@ -735,6 +786,8 @@ int main()
                     break;
             }
         }
+        if(machine_state==SVDT_IS_KILL)
+            continue;
         if(cwd_needs_update)
         {
             freeDir(ccwd);

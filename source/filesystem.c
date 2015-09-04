@@ -125,7 +125,7 @@ Result loadFile(char* path, void* dst, FS_archive* archive, Handle* fsHandle, u6
 // oh and let's add in a writeFile, because we kind of need that
 Result writeFile(char* path, u8* data, u32 size, FS_archive* archive, Handle* fsHandle)
 {
-    if(!path || !data || !size)return -1;
+    if(!path || !data)return -1;
 
     Handle outFileHandle;
     u32 bytesWritten;
