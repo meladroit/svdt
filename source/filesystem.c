@@ -72,6 +72,29 @@ Result filesystemExit()
 	return ret;
 }
 
+Result FSUSER_ControlArchive(Handle handle, FS_archive archive)
+{
+	u32* cmdbuf=getThreadCommandBuffer();
+
+	u32 b1 = 0, b2 = 0;
+
+	cmdbuf[0]=0x080d0144;
+	cmdbuf[1]=archive.handleLow;
+	cmdbuf[2]=archive.handleHigh;
+	cmdbuf[3]=0x0;
+	cmdbuf[4]=0x1; //buffer1 size
+	cmdbuf[5]=0x1; //buffer1 size
+	cmdbuf[6]=0x1a;
+	cmdbuf[7]=(u32)&b1;
+	cmdbuf[8]=0x1c;
+	cmdbuf[9]=(u32)&b2;
+ 
+	Result ret=0;
+	if((ret=svcSendSyncRequest(handle)))return ret;
+ 
+	return cmdbuf[1];
+}
+
 // let's add stuff from 3ds_hb_menu, just because
 Result loadFile(char* path, void* dst, FS_archive* archive, Handle* fsHandle, u64 maxSize)
 {
@@ -117,8 +140,11 @@ Result writeFile(char* path, u8* data, u32 size, FS_archive* archive, Handle* fs
     ret = FSFILE_Close(outFileHandle);
     if(ret!=0)return ret;
 
-    // relegate this part of it to main.c ...
-    // ret = FSUSER_ControlArchive(NULL, saveGameArchive);
+    if(archive==&saveGameArchive)
+    {
+        printf("calling ControlArchive\n");
+        ret = FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
+    }
 
     return ret;
 }
@@ -129,6 +155,13 @@ Result deleteFile(char* path, FS_archive* archive, Handle* fsHandle)
     if(!path || !archive)return -1;
 
     Result ret = FSUSER_DeleteFile(fsHandle, *archive, FS_makePath(PATH_CHAR, path));
+    if(ret!=0)return ret;
+
+    if(archive==&saveGameArchive)
+    {
+        printf("\ncalling ControlArchive\n");
+        ret = FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
+    }
     return ret;
 }
 

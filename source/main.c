@@ -13,7 +13,8 @@
 #define MAX_LS_LINES HEIGHT-4
 #define CURSOR_WIDTH 3
 #define LIST_WIDTH (TOP_WIDTH/2-CURSOR_WIDTH)
-#define RES_OUT_OF_SPACE 0xc86044cd
+#define RES_OUT_OF_SPACE_CARD 0xc86044cd  // probably
+#define RES_OUT_OF_SPACE_ESHOP 0xd8604664 // at least I think so
 typedef struct lsLine
 {
     char thisLine[MAX_PATH_LENGTH];
@@ -122,29 +123,6 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
     FSDIR_Close(dirHandle); // oh god how did I forget this line
 }
 
-Result FSUSER_ControlArchive(Handle handle, FS_archive archive)
-{
-	u32* cmdbuf=getThreadCommandBuffer();
-
-	u32 b1 = 0, b2 = 0;
-
-	cmdbuf[0]=0x080d0144;
-	cmdbuf[1]=archive.handleLow;
-	cmdbuf[2]=archive.handleHigh;
-	cmdbuf[3]=0x0;
-	cmdbuf[4]=0x1; //buffer1 size
-	cmdbuf[5]=0x1; //buffer1 size
-	cmdbuf[6]=0x1a;
-	cmdbuf[7]=(u32)&b1;
-	cmdbuf[8]=0x1c;
-	cmdbuf[9]=(u32)&b2;
- 
-	Result ret=0;
-	if((ret=svcSendSyncRequest(handle)))return ret;
- 
-	return cmdbuf[1];
-}
-
 const char HOME[2] = "/";
 const char SDMC_CURSOR[4] = ">>>";
 const char SAVE_CURSOR[4] = ">>>";
@@ -174,14 +152,21 @@ void debugOut(char* garbled)
 int detectOverwrite(char* path, lsDir* destDir)
 {   
     if (!destDir || !path) return -1;
+    debugOut("checking for overwrite risk");
+    printf("checking against %s",path);
     lsLine* curLine = destDir->firstLine;
+    debugOut("starting check");
     while (curLine)
     {
         if (!(curLine->isDirectory))
             if (!strcmp(curLine->thisLine,path))
+            {
+                printf("found overwrite: %s\n",curLine->thisLine);
                 return 1;
+            }
         curLine = curLine->nextLine;
     }
+    printf("no overwrite\n");
     return 0;
 }
 
@@ -235,8 +220,8 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
     {
         debugOut("error writing file");
         printf("result code %08x\n",(unsigned int)res);
-        if(res==RES_OUT_OF_SPACE)
-            printf("(you may be running out of space!)\n");
+        if(res==RES_OUT_OF_SPACE_CARD || res==RES_OUT_OF_SPACE_ESHOP)
+            printf("(you may be running out of save space!)\n");
         return;
     }
     debugOut("success!");
@@ -290,6 +275,7 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir)
         gotoSubDirectory(destDir,path);
     }
     printf("destpath %s",destpath);
+    gotoSubDirectory(dir,path);
     scanDir(dir,curArchive,curFsHandle);
     lsLine* curLine = dir->firstLine;
     while (curLine)
@@ -477,7 +463,7 @@ int main()
     consoleSetWindow(&saveList,CURSOR_WIDTH,3,LIST_WIDTH,HEIGHT-3);
     consoleSetWindow(&sdmcCursor,TOP_WIDTH/2,3,CURSOR_WIDTH,HEIGHT-3);
     consoleSetWindow(&sdmcList,TOP_WIDTH/2+CURSOR_WIDTH,3,LIST_WIDTH,HEIGHT-3);
-    consoleSetWindow(&statusBar,0,0,BOTTOM_WIDTH,8);
+    consoleSetWindow(&statusBar,0,0,BOTTOM_WIDTH,HEIGHT);//8);
     consoleSetWindow(&instructions,0,8,BOTTOM_WIDTH,HEIGHT-2);
     
 	consoleSelect(&titleBar);
@@ -501,7 +487,7 @@ int main()
     machine_state = SELECT_SDMC;
     printDir(&cwd_sdmc);
     
-    printInstructions();
+    //printInstructions();
     
     consoleSelect(&statusBar);
     textcolour(NEONGREEN);
@@ -580,6 +566,7 @@ int main()
                     }
                     machine_state = previous_state;
                     previous_state = CONFIRM_DELETE;
+                    cwd_needs_update = 1;
                     break;
                 default:
                     previous_state = machine_state;
@@ -598,8 +585,6 @@ int main()
         {
             if (machine_state == CONFIRM_OVERWRITE)
             {
-                machine_state = previous_state;
-                previous_state = CONFIRM_OVERWRITE;
                 if (curArchive==&sdmcArchive)
                     deleteFile(deletePath,&saveGameArchive,&saveGameFsHandle);
                 if (curArchive==&saveGameArchive)
@@ -607,43 +592,56 @@ int main()
                     
                 copyFile(ccwd,overwritePath,overwriteSize,notccwd);
                 notccwd_needs_update = 1;
-            }
-            debugOut("attempting to copy selection");
-            int i;
-            switch (cursor_y)
-            {
-                case 0:
-                    copyDir(ccwd,NULL,notccwd);
-                    break;
-                case 1:
-                    if (!ccwd->lsOffset)
-                        break;
-                default: ;
-                    lsLine* selection = ccwd->firstLine;
-                    for (i=0;i<cursor_y+ccwd->lsOffset-2;i++)
-                    {
-                        selection = selection->nextLine;
-                    }
-                    debugOut(selection->thisLine);
-                    printf(" isDir: %d",(int)selection->isDirectory);
-                    if(selection->isDirectory)
-                    {
-                        copyDir(ccwd,selection->thisLine,notccwd);
-                        notccwd_needs_update = 1;
-                    } else {
-                        if (detectOverwrite(selection->thisLine,notccwd))
+                machine_state = previous_state;
+                previous_state = CONFIRM_OVERWRITE;
+            } else {
+                debugOut("attempting to copy selection");
+                int i;
+                switch (cursor_y)
+                {
+                    case 0:
+                        if (strcmp("/",(const char*)ccwd->thisDir))
                         {
-                            debugOut("possible overwrite detected\npress Y again to confirm!");
-                            previous_state = machine_state;
-                            machine_state = CONFIRM_OVERWRITE;
-                            strncpy(overwritePath,selection->thisLine,MAX_PATH_LENGTH);
-                            overwriteSize = selection->fileSize;
-                        } else {
-                            copyFile(ccwd,selection->thisLine,selection->fileSize,notccwd);
-                            notccwd_needs_update = 1;
+                            debugOut("dumping root");
+                            copyDir(ccwd,NULL,notccwd);
                         }
-                    }
-                    break;
+                        else
+                        {
+                            debugOut("dumping subdirectory");
+                            printf("using basename %s",lsDirBasename(ccwd));
+                            copyDir(ccwd,lsDirBasename(ccwd),notccwd);
+                        }
+                        break;
+                    case 1:
+                        if (!ccwd->lsOffset)
+                            break;
+                    default: ;
+                        lsLine* selection = ccwd->firstLine;
+                        for (i=0;i<cursor_y+ccwd->lsOffset-2;i++)
+                        {
+                            selection = selection->nextLine;
+                        }
+                        debugOut(selection->thisLine);
+                        printf(" isDir: %d",(int)selection->isDirectory);
+                        if(selection->isDirectory)
+                        {
+                            copyDir(ccwd,selection->thisLine,notccwd);
+                            notccwd_needs_update = 1;
+                        } else {
+                            if (detectOverwrite(selection->thisLine,notccwd))
+                            {
+                                debugOut("possible overwrite detected\npress Y again to confirm!");
+                                previous_state = machine_state;
+                                machine_state = CONFIRM_OVERWRITE;
+                                strncpy(overwritePath,selection->thisLine,MAX_PATH_LENGTH);
+                                overwriteSize = selection->fileSize;
+                            } else {
+                                copyFile(ccwd,selection->thisLine,selection->fileSize,notccwd);
+                                notccwd_needs_update = 1;
+                            }
+                        }
+                        break;
+                }
             }
         } else {
             if (hidKeysDown() && (machine_state == CONFIRM_OVERWRITE))
