@@ -1,6 +1,7 @@
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 #include <3ds.h>
 
@@ -12,7 +13,7 @@
 #define MAX_LS_LINES HEIGHT-4
 #define CURSOR_WIDTH 3
 #define LIST_WIDTH (TOP_WIDTH/2-CURSOR_WIDTH)
-
+#define RES_OUT_OF_SPACE 0xc86044cd
 typedef struct lsLine
 {
     char thisLine[MAX_PATH_LENGTH];
@@ -82,32 +83,6 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
     dir->firstLine = NULL;
     Handle dirHandle;
     Result res = FSUSER_OpenDirectory(fsHandle, &dirHandle, *archive, FS_makePath(PATH_CHAR, dir->thisDir));
-    /*if (res)
-    {
-        printf("\nerror opening directory at %s\n",dir->thisDir);
-        printf("result code %08x\n",(unsigned int)res);
-        if (fsHandle == &sdmcFsHandle)
-            printf("it's sdmc again, all right\n");
-        printf("going to try reinitialising filesystem\n");
-        res = filesystemExit();
-        if (res)
-        {
-            printf("can't close filesystem\n");
-        }
-        res = filesystemInit();
-        if (res)
-        {
-            printf("can't init filesystem\n");
-        }
-        if (fsHandle == &sdmcFsHandle)
-            printf("still got sdmc handle\n");
-        res = FSUSER_OpenDirectory(fsHandle, &dirHandle, *archive, FS_makePath(PATH_CHAR, dir->thisDir));
-        if (res)
-        {
-            printf("nope, giving up\n");
-            return;
-        }
-    }*/
     dir->dirEntryCount = 0;
     dir->lsOffset = 0;
     // cribbing from 3ds_hb_menu again
@@ -127,7 +102,6 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
             return;
         }
         unicodeToChar(pathname,entry.name,MAX_PATH_LENGTH);
-        //printf("%s\n",pathname);
         if(entriesRead)
         {
             lsLine* tempLine = (lsLine*)malloc(sizeof(lsLine));
@@ -184,6 +158,7 @@ enum state
     CONFIRM_OVERWRITE,
 };
 enum state machine_state;
+enum state previous_state;
 
 PrintConsole titleBar, sdmcList, saveList, sdmcCursor, saveCursor;
 PrintConsole statusBar, instructions;
@@ -194,6 +169,139 @@ void debugOut(char* garbled)
     printf("\n");//consoleClear();
     textcolour(NEONGREEN);
     printf("%s\n",garbled);
+}
+
+int detectOverwrite(char* path, lsDir* destDir)
+{   
+    if (!destDir || !path) return -1;
+    lsLine* curLine = destDir->firstLine;
+    while (curLine)
+    {
+        if (!(curLine->isDirectory))
+            if (!strcmp(curLine->thisLine,path))
+                return 1;
+        curLine = curLine->nextLine;
+    }
+    return 0;
+}
+
+void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
+{
+    if (!dir || !destDir || !path) return;
+    Handle* curFsHandle = NULL;
+    Handle* destFsHandle = NULL;
+    FS_archive* curArchive = NULL;
+    FS_archive* destArchive = NULL;
+    switch(machine_state)
+    {
+        case SELECT_SAVE:
+            curFsHandle = &saveGameFsHandle;
+            curArchive = &saveGameArchive;
+            destFsHandle = &sdmcFsHandle;
+            destArchive = &sdmcArchive;
+            break;
+        case SELECT_SDMC:
+            curFsHandle = &sdmcFsHandle;
+            curArchive = &sdmcArchive;
+            destFsHandle = &saveGameFsHandle;
+            destArchive = &saveGameArchive;
+            break;
+        default:
+            break;
+    }
+    
+    char origpath[MAX_PATH_LENGTH] = {0};
+    char destpath[MAX_PATH_LENGTH] = {0};
+    strncpy(origpath,dir->thisDir,MAX_PATH_LENGTH);
+    strcat(origpath,path);
+    strncpy(destpath,destDir->thisDir,MAX_PATH_LENGTH);
+    strcat(destpath,path);
+    
+    u8* data = (u8*) malloc(size);
+    
+    debugOut("reading original file ...");
+    printf("original path %s\n",origpath);
+    Result res = loadFile(origpath,data,curArchive,curFsHandle,size);
+    if(res)
+    {
+        debugOut("error reading file");
+        printf("result code %08x",(unsigned int)res);
+        return;
+    }
+    debugOut("writing new file ...");
+    printf("destination path %s\n",destpath);
+    res = writeFile(destpath,data,(u32)size,destArchive,destFsHandle);
+    if(res)
+    {
+        debugOut("error writing file");
+        printf("result code %08x\n",(unsigned int)res);
+        if(res==RES_OUT_OF_SPACE)
+            printf("(you may be running out of space!)\n");
+        return;
+    }
+    debugOut("success!");
+    free(data);
+}
+
+void copyDir(lsDir* dir, char* path, lsDir* destDir)
+{
+    if (!dir || !destDir) return;
+    Handle* curFsHandle = NULL;
+    Handle* destFsHandle = NULL;
+    FS_archive* curArchive = NULL;
+    FS_archive* destArchive = NULL;
+    
+    char origpath[MAX_PATH_LENGTH] = {0};
+    char destpath[MAX_PATH_LENGTH] = {0};
+    char timeStr[16] = {0};
+    strncpy(origpath,dir->thisDir,MAX_PATH_LENGTH);
+    strcat(origpath,path);
+    debugOut("constructing paths");
+    strncpy(destpath,destDir->thisDir,MAX_PATH_LENGTH);
+    printf("origpath %s\n",origpath);
+    switch(machine_state)
+    {
+        case SELECT_SAVE:
+            curFsHandle = &saveGameFsHandle;
+            curArchive = &saveGameArchive;
+            destFsHandle = &sdmcFsHandle;
+            destArchive = &sdmcArchive;
+            break;
+        case SELECT_SDMC:
+            curFsHandle = &sdmcFsHandle;
+            curArchive = &sdmcArchive;
+            destFsHandle = &saveGameFsHandle;
+            destArchive = &saveGameArchive;
+            break;
+        default:
+            break;
+    }
+    debugOut("got handles");
+    if (!path)
+    {
+        time_t temps = time(NULL);
+        strftime(timeStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
+        strcat(destpath,timeStr);
+        FSUSER_CreateDirectory(destFsHandle,*destArchive,FS_makePath(PATH_CHAR,destpath));
+        gotoSubDirectory(destDir,timeStr);
+    } else {
+        strcat(destpath,path);
+        FSUSER_CreateDirectory(destFsHandle,*destArchive,FS_makePath(PATH_CHAR,destpath));
+        gotoSubDirectory(destDir,path);
+    }
+    printf("destpath %s",destpath);
+    scanDir(dir,curArchive,curFsHandle);
+    lsLine* curLine = dir->firstLine;
+    while (curLine)
+    {
+        if (curLine->isDirectory)
+            copyDir(dir,curLine->thisLine,destDir);
+        else
+            copyFile(dir,curLine->thisLine,curLine->fileSize,destDir);
+        curLine = curLine->nextLine;
+    }
+    gotoParentDirectory(dir);
+    gotoParentDirectory(destDir);
 }
 
 void printDir(lsDir* dir)
@@ -341,7 +449,7 @@ void printInstructions()
     consoleSelect(&instructions);
     consoleClear();
     textcolour(WHITE);
-    wordwrap("svdt is tdvs, reversed and without vowels. Use it to transfer files between your SD card and your save data. If you don't see any save data, restart until you can select a target app.\n",BOTTOM_WIDTH);
+    wordwrap("svdt is tdvs, reversed and without vowels. Use it to transfer files between your SD card and your save data. (Directories marked in purple.) If you don't see any save data, restart until you can select a target app.\n",BOTTOM_WIDTH);
     wordwrap("> Press L/R to point at save/SD data, and up/down to point at a specific file or folder.\n",BOTTOM_WIDTH);
     wordwrap("> Press X to delete file. (Deleting folders is purposefully omitted here.)\n",BOTTOM_WIDTH);
     wordwrap("> Press A to navigate inside a folder. Press B to return to the parent folder, if there is one.\n",BOTTOM_WIDTH);
@@ -387,10 +495,11 @@ int main()
     scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
     scanDir(&cwd_save,&saveGameArchive,&saveGameFsHandle);
     
-    consoleSelect(&sdmcList);
-    printDir(&cwd_sdmc);
-    consoleSelect(&saveList);
+    machine_state = SELECT_SAVE;
     printDir(&cwd_save);
+    previous_state = machine_state;
+    machine_state = SELECT_SDMC;
+    printDir(&cwd_sdmc);
     
     printInstructions();
     
@@ -398,13 +507,16 @@ int main()
     textcolour(NEONGREEN);
     debugOut("Successful startup, I guess. Huh.");
 
-    machine_state = SELECT_SDMC;
     consoleSelect(&sdmcCursor);
     consoleClear();
     gotoxy(0,0);
     printf(SDMC_CURSOR);
     int cursor_y = 0;
+    char overwritePath[MAX_PATH_LENGTH] = {0};
+    char deletePath[MAX_PATH_LENGTH] = {0};
+    u64 overwriteSize = 0;
     lsDir* ccwd = &cwd_sdmc;
+    lsDir* notccwd = &cwd_save;
     PrintConsole* curList = &sdmcList;
     Handle* curFsHandle = &sdmcFsHandle;
     FS_archive* curArchive = &sdmcArchive;
@@ -416,6 +528,7 @@ int main()
 	{
 		hidScanInput();
         int cwd_needs_update = 0;
+        int notccwd_needs_update = 0;
         sdmcPrevious = sdmcCurrent; 
         FSUSER_IsSdmcDetected(NULL, &sdmcCurrent);
         if(sdmcCurrent != sdmcPrevious)
@@ -433,13 +546,122 @@ int main()
             }
         }
 		if(hidKeysDown() & KEY_START)break;
+        if(hidKeysDown() & KEY_X)
+        {
+            switch (machine_state)
+            {
+                case CONFIRM_DELETE:
+                    debugOut("attempting to delete selection");
+                    int i;
+                    switch (cursor_y)
+                    {
+                        case 0:
+                            break;
+                        case 1:
+                            if (!ccwd->lsOffset)
+                                break;
+                        default: ;
+                            strncpy(deletePath,ccwd->thisDir,MAX_PATH_LENGTH);
+                            lsLine* selection = ccwd->firstLine;
+                            for (i=0;i<cursor_y+ccwd->lsOffset-2;i++)
+                            {
+                                selection = selection->nextLine;
+                            }
+                            debugOut(selection->thisLine);
+                            printf(" isDir: %d",(int)selection->isDirectory);
+                            strcat(deletePath,selection->thisLine);
+                            if(selection->isDirectory)
+                            {
+                                FSUSER_DeleteDirectoryRecursively(curFsHandle,*curArchive,FS_makePath(PATH_CHAR,deletePath));
+                            } else {
+                                deleteFile(deletePath,curArchive,curFsHandle);
+                            }
+                            break;
+                    }
+                    machine_state = previous_state;
+                    previous_state = CONFIRM_DELETE;
+                    break;
+                default:
+                    previous_state = machine_state;
+                    machine_state = CONFIRM_DELETE;
+                    debugOut("press X again to confirm delete!");
+            }
+        } else {
+            if (hidKeysDown() && (machine_state == CONFIRM_DELETE))
+            {
+                machine_state = previous_state;
+                previous_state = CONFIRM_DELETE;
+                debugOut("delete unconfirmed");
+            }
+        }
+        if(hidKeysDown() & KEY_Y)
+        {
+            if (machine_state == CONFIRM_OVERWRITE)
+            {
+                machine_state = previous_state;
+                previous_state = CONFIRM_OVERWRITE;
+                if (curArchive==&sdmcArchive)
+                    deleteFile(deletePath,&saveGameArchive,&saveGameFsHandle);
+                if (curArchive==&saveGameArchive)
+                    deleteFile(deletePath,&sdmcArchive,&sdmcFsHandle);
+                    
+                copyFile(ccwd,overwritePath,overwriteSize,notccwd);
+                notccwd_needs_update = 1;
+            }
+            debugOut("attempting to copy selection");
+            int i;
+            switch (cursor_y)
+            {
+                case 0:
+                    copyDir(ccwd,NULL,notccwd);
+                    break;
+                case 1:
+                    if (!ccwd->lsOffset)
+                        break;
+                default: ;
+                    lsLine* selection = ccwd->firstLine;
+                    for (i=0;i<cursor_y+ccwd->lsOffset-2;i++)
+                    {
+                        selection = selection->nextLine;
+                    }
+                    debugOut(selection->thisLine);
+                    printf(" isDir: %d",(int)selection->isDirectory);
+                    if(selection->isDirectory)
+                    {
+                        copyDir(ccwd,selection->thisLine,notccwd);
+                        notccwd_needs_update = 1;
+                    } else {
+                        if (detectOverwrite(selection->thisLine,notccwd))
+                        {
+                            debugOut("possible overwrite detected\npress Y again to confirm!");
+                            previous_state = machine_state;
+                            machine_state = CONFIRM_OVERWRITE;
+                            strncpy(overwritePath,selection->thisLine,MAX_PATH_LENGTH);
+                            overwriteSize = selection->fileSize;
+                        } else {
+                            copyFile(ccwd,selection->thisLine,selection->fileSize,notccwd);
+                            notccwd_needs_update = 1;
+                        }
+                    }
+                    break;
+            }
+        } else {
+            if (hidKeysDown() && (machine_state == CONFIRM_OVERWRITE))
+            {
+                machine_state = previous_state;
+                previous_state = CONFIRM_OVERWRITE;
+                debugOut("overwrite unconfirmed");
+            }
+        }
         if(hidKeysDown() & (KEY_L | KEY_DLEFT))
         {
             consoleSelect(&sdmcCursor);
             consoleClear();
+            previous_state = machine_state;
             machine_state = SELECT_SAVE;
             redrawCursor(&cursor_y,ccwd);
             ccwd = &cwd_save;
+            notccwd = &cwd_sdmc;
             curList = &saveList;
             curFsHandle = &saveGameFsHandle;
             curArchive = &saveGameArchive;
@@ -451,6 +673,7 @@ int main()
             machine_state = SELECT_SDMC;
             redrawCursor(&cursor_y,ccwd);
             ccwd = &cwd_sdmc;
+            notccwd = &cwd_save;
             curList = &sdmcList;
             curFsHandle = &sdmcFsHandle;
             curArchive = &sdmcArchive;
@@ -464,6 +687,15 @@ int main()
         {
             cursor_y++;
             redrawCursor(&cursor_y,ccwd);
+        }
+        if(hidKeysDown() & KEY_B)
+        {
+            if (strcmp("/",(const char*)ccwd->thisDir))
+            {
+                gotoParentDirectory(ccwd);
+                debugOut("navigating to parent directory");
+                cwd_needs_update = 1;
+            }
         }
         if(hidKeysDown() & KEY_A)
         {
@@ -484,7 +716,6 @@ int main()
                 default: ;
                     lsLine* selection = ccwd->firstLine;
                     int i;
-                    debugOut(selection->thisLine);
                     for (i=0;i<cursor_y+ccwd->lsOffset-2;i++)
                     {
                         selection = selection->nextLine;
@@ -518,14 +749,32 @@ int main()
             printDir(ccwd);
             redrawCursor(&cursor_y,ccwd);
         }
-        switch (machine_state)
+        if(notccwd_needs_update)
         {
-            case SELECT_SAVE:
-                break;
-            case SELECT_SDMC:
-                break;
-            default:
-                break;
+            freeDir(notccwd);
+            previous_state = machine_state;
+            switch (machine_state)
+            {
+                case SELECT_SAVE:
+                    scanDir(notccwd,&sdmcArchive,&sdmcFsHandle);
+                    machine_state = SELECT_SDMC;
+                    break;
+                case SELECT_SDMC:
+                    scanDir(notccwd,&saveGameArchive,&saveGameFsHandle);
+                    machine_state = SELECT_SAVE;
+                    break;
+                default:
+                    break;
+            }
+            
+            debugOut("scanned not-current directory");
+            printf("%s\n dirEntryCount %d",notccwd->thisDir,notccwd->dirEntryCount);
+            //debugOut("and now some formalities");
+            printDir(notccwd);
+            enum state temp_state = previous_state;
+            previous_state = machine_state;
+            machine_state = temp_state;
+            redrawCursor(&cursor_y,notccwd);
         }
 		gspWaitForVBlank();
         // Flush and swap framebuffers

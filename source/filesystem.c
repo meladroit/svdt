@@ -131,3 +131,20 @@ Result deleteFile(char* path, FS_archive* archive, Handle* fsHandle)
     Result ret = FSUSER_DeleteFile(fsHandle, *archive, FS_makePath(PATH_CHAR, path));
     return ret;
 }
+
+u64 sizeFile(char* path, FS_archive* archive, Handle* fsHandle)
+{
+    if(!path || !archive)return -1;
+
+    u64 size = -1;
+    Handle fileHandle;
+
+    Result ret=FSUSER_OpenFile(fsHandle, &fileHandle, *archive, FS_makePath(PATH_CHAR, path), FS_OPEN_READ, FS_ATTRIBUTE_NONE);
+    if(ret!=0)return -1;
+
+    ret=FSFILE_GetSize(fileHandle, &size);
+    if(ret!=0)return -1;
+    
+    FSFILE_Close(fileHandle);
+    return size;
+}
