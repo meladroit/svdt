@@ -16,6 +16,7 @@ Put svdt.3dsx, svdt.smdh, and svdt.xml in sd:/3ds/svdt/. Run from the homebrew l
  * Press A to navigate inside a subdirectory.
  * Press X to delete the selected file or directory (recursively). svdt will ask for confirmation by pressing X again.
  * Press Y to copy the selected file or directory (recursively) across. svdt will ask for confirmation if it sees that the file you are trying to copy may overwrite a file in the destination directory. *svdt does not check this at all when copying directories.*
+ * If there are more files and directories in the folder than can fit on the screen, you actually can scroll up and down past the last on-screen item. There is no visual indicator for this, however.
 * Press SELECT to see a set of instructions on the lower screen. Normally, the screen is full of moderately useful debug output.
 * Press START to exit back to the homebrew launcher.
 
