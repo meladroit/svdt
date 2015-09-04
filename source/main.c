@@ -708,24 +708,24 @@ int main()
             consoleClear();
             previous_state = machine_state;
             machine_state = SELECT_SAVE;
-            redrawCursor(&cursor_y,ccwd);
             ccwd = &cwd_save;
             notccwd = &cwd_sdmc;
             curList = &saveList;
             curFsHandle = &saveGameFsHandle;
             curArchive = &saveGameArchive;
+            redrawCursor(&cursor_y,ccwd);
         }
         if((hidKeysDown() & (KEY_R | KEY_DRIGHT)) && sdmcCurrent)
         {
             consoleSelect(&saveCursor);
             consoleClear();
             machine_state = SELECT_SDMC;
-            redrawCursor(&cursor_y,ccwd);
             ccwd = &cwd_sdmc;
             notccwd = &cwd_save;
             curList = &sdmcList;
             curFsHandle = &sdmcFsHandle;
             curArchive = &sdmcArchive;
+            redrawCursor(&cursor_y,ccwd);
         }
         if(hidKeysDown() & (KEY_UP))
         {
