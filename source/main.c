@@ -9,6 +9,7 @@
 #include "utils.h"
 
 #define MAX_PATH_LENGTH 1024
+#define MAX_LS_LINES HEIGHT-4
 #define CURSOR_WIDTH 3
 #define LIST_WIDTH (TOP_WIDTH/2-CURSOR_WIDTH)
 
@@ -23,26 +24,14 @@ typedef struct lsLine
 typedef struct lsDir
 {
     char thisDir[MAX_PATH_LENGTH];
-    char fullDir[MAX_PATH_LENGTH];
-    Handle thisDirHandle;
     int dirEntryCount;
+    int lsOffset;
     struct lsLine* firstLine;
-    struct lsDir* parentDir;
 } lsDir;
-
-void freeLine(lsLine* line)
-{
-    if(!line) return;
-    free(&line->thisLine);
-    free(&line->isDirectory);
-    free(&line->fileSize);
-    line->nextLine = NULL;
-}
 
 void freeDir(lsDir* dir)
 {
     if (!dir) return;
-    free(&dir->thisDirHandle);
     // still totally cribbing from 3ds_hb_menu
     lsLine* line = dir->firstLine;
     lsLine* temp = NULL;
@@ -50,31 +39,77 @@ void freeDir(lsDir* dir)
     {
         temp = line->nextLine;
         line->nextLine = NULL;
-        freeLine(line);
         free(line);
         line = temp;
     }
-    dir->parentDir = NULL;
+    dir->dirEntryCount = 0;
+    dir->firstLine = NULL;
 }
 
-void initDir(lsDir* dir, FS_archive* archive, Handle* fsHandle, char* path, lsDir* parentDir)
+// hey look yet another 3ds_hb_menu derivative
+void gotoParentDirectory(lsDir* dir)
+{
+    char* cwd = dir->thisDir;
+    char *p = cwd + strlen(cwd)-2;
+    while(p > cwd && *p != '/') *p-- = 0;
+}
+
+void gotoSubDirectory(lsDir* dir, char* basename)
+{
+    char* cwd = dir->thisDir;
+    cwd = strcat(cwd,basename);
+    cwd = strcat(cwd,"/");
+}
+
+char* lsDirBasename(lsDir* dir)
+{
+    char* ret = NULL;
+    // our convention is awkward enough to have to find the second-to-last slash in most cases
+    char* baseidx = dir->thisDir;
+    char* baseidx2 = strrchr(dir->thisDir,'/');
+    while (baseidx!=baseidx2)
+    {
+        ret = baseidx;
+        baseidx = strchr(baseidx+1,'/');
+    }
+    return ret;
+}
+
+void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
 {
     if (!dir) return;
 
-    dir->parentDir=parentDir;
     dir->firstLine = NULL;
     Handle dirHandle;
-    FSUSER_OpenDirectory(fsHandle, &dirHandle, *archive, FS_makePath(PATH_CHAR, path));
-    if (!dir->parentDir)
+    Result res = FSUSER_OpenDirectory(fsHandle, &dirHandle, *archive, FS_makePath(PATH_CHAR, dir->thisDir));
+    /*if (res)
     {
-        strncpy(dir->fullDir,dir->thisDir,MAX_PATH_LENGTH);
-    } else {
-        strncpy(dir->fullDir,dir->parentDir->fullDir,MAX_PATH_LENGTH);
-        strcat(dir->fullDir,dir->thisDir);
-        strcat(dir->fullDir,"/");
-    }
-    dir->thisDirHandle = dirHandle;
+        printf("\nerror opening directory at %s\n",dir->thisDir);
+        printf("result code %08x\n",(unsigned int)res);
+        if (fsHandle == &sdmcFsHandle)
+            printf("it's sdmc again, all right\n");
+        printf("going to try reinitialising filesystem\n");
+        res = filesystemExit();
+        if (res)
+        {
+            printf("can't close filesystem\n");
+        }
+        res = filesystemInit();
+        if (res)
+        {
+            printf("can't init filesystem\n");
+        }
+        if (fsHandle == &sdmcFsHandle)
+            printf("still got sdmc handle\n");
+        res = FSUSER_OpenDirectory(fsHandle, &dirHandle, *archive, FS_makePath(PATH_CHAR, dir->thisDir));
+        if (res)
+        {
+            printf("nope, giving up\n");
+            return;
+        }
+    }*/
     dir->dirEntryCount = 0;
+    dir->lsOffset = 0;
     // cribbing from 3ds_hb_menu again
     u32 entriesRead;
     lsLine* lastLine = NULL;
@@ -84,10 +119,16 @@ void initDir(lsDir* dir, FS_archive* archive, Handle* fsHandle, char* path, lsDi
         static FS_dirent entry;
         memset(&entry,0,sizeof(FS_dirent));
         entriesRead=0;
-        FSDIR_Read(dirHandle, &entriesRead, 1, &entry);
+        res = FSDIR_Read(dirHandle, &entriesRead, 1, &entry);
+        if (res)
+        {
+            printf("error reading directory\n");
+            printf("result code %08x\n",(unsigned int)res);
+            return;
+        }
         unicodeToChar(pathname,entry.name,MAX_PATH_LENGTH);
         //printf("%s\n",pathname);
-        if(entriesRead && (HEIGHT-5>dir->dirEntryCount))
+        if(entriesRead)
         {
             lsLine* tempLine = (lsLine*)malloc(sizeof(lsLine));
             strncpy(tempLine->thisLine,pathname,MAX_PATH_LENGTH);
@@ -104,20 +145,118 @@ void initDir(lsDir* dir, FS_archive* archive, Handle* fsHandle, char* path, lsDi
             dir->dirEntryCount++;
         }
     }while (entriesRead);
+    FSDIR_Close(dirHandle); // oh god how did I forget this line
+}
+
+Result FSUSER_ControlArchive(Handle handle, FS_archive archive)
+{
+	u32* cmdbuf=getThreadCommandBuffer();
+
+	u32 b1 = 0, b2 = 0;
+
+	cmdbuf[0]=0x080d0144;
+	cmdbuf[1]=archive.handleLow;
+	cmdbuf[2]=archive.handleHigh;
+	cmdbuf[3]=0x0;
+	cmdbuf[4]=0x1; //buffer1 size
+	cmdbuf[5]=0x1; //buffer1 size
+	cmdbuf[6]=0x1a;
+	cmdbuf[7]=(u32)&b1;
+	cmdbuf[8]=0x1c;
+	cmdbuf[9]=(u32)&b2;
+ 
+	Result ret=0;
+	if((ret=svcSendSyncRequest(handle)))return ret;
+ 
+	return cmdbuf[1];
+}
+
+const char HOME[2] = "/";
+const char SDMC_CURSOR[4] = ">>>";
+const char SAVE_CURSOR[4] = ">>>";
+const char NULL_CURSOR[4] = "   ";
+
+enum state
+{
+    SELECT_SDMC,
+    SELECT_SAVE,
+    CONFIRM_DELETE,
+    CONFIRM_OVERWRITE,
+};
+enum state machine_state;
+
+PrintConsole titleBar, sdmcList, saveList, sdmcCursor, saveCursor;
+PrintConsole statusBar, instructions;
+
+void debugOut(char* garbled)
+{
+    consoleSelect(&statusBar);
+    printf("\n");//consoleClear();
+    textcolour(NEONGREEN);
+    printf("%s\n",garbled);
 }
 
 void printDir(lsDir* dir)
 {
+    switch(machine_state)
+    {
+        case SELECT_SAVE:
+            consoleSelect(&saveList);
+            break;
+        case SELECT_SDMC:
+            consoleSelect(&sdmcList);
+            break;
+        default:
+            break;
+    }
+    consoleClear();
+    int lines_available = MAX_LS_LINES;
     int i;
     char lineOut[LIST_WIDTH] = {0};
     textcolour(PURPLE);
-    printf("%s\n",dir->thisDir);
-    if (dir->parentDir)
-        printf("../\n");
-    else
-        printf("[is root]\n");
+    if(strlen(dir->thisDir)<LIST_WIDTH)
+    {
+        strncpy(lineOut,dir->thisDir,LIST_WIDTH-1);
+    } else {
+        strncpy(lineOut,lsDirBasename(dir),LIST_WIDTH-1);
+        if(strlen(lsDirBasename(dir))>=LIST_WIDTH)
+        {
+            char x;
+            for(i=0;i<5;i++)
+            {
+                switch(i)
+                {
+                    case 0:
+                        x = ']';
+                        break;
+                    case 4:
+                        x = '[';
+                        break;
+                    default:
+                        x = '.';
+                        break;
+                }
+                lineOut[LIST_WIDTH-2-i] = x;
+            }
+        }
+    }
+    printf("%s\n",lineOut);//lsDirBasename(dir));
+    lines_available--;
+    if (!dir->lsOffset)
+    {
+        if (strcmp("/",(const char*)dir->thisDir))
+            printf("../\n");
+        else
+            printf("[is root]\n");
+        lines_available--;
+    }
     lsLine* currentLine = dir->firstLine;
-    while (currentLine)
+    for (i=1;i<dir->lsOffset;i++)
+    {
+        if(currentLine)
+            currentLine = currentLine->nextLine;
+    }
+    while (currentLine && lines_available)
     {
         if(currentLine->isDirectory)
             textcolour(MAGENTA);
@@ -145,60 +284,39 @@ void printDir(lsDir* dir)
             }
         }
         printf("%s\n",lineOut);
+        lines_available--;
         //printf("[REDACTED]\n");
         currentLine = currentLine->nextLine;
     }
 }
 
-Result FSUSER_ControlArchive(Handle handle, FS_archive archive)
+void redrawCursor(int* cursor_y, lsDir* dir)
 {
-	u32* cmdbuf=getThreadCommandBuffer();
-
-	u32 b1 = 0, b2 = 0;
-
-	cmdbuf[0]=0x080d0144;
-	cmdbuf[1]=archive.handleLow;
-	cmdbuf[2]=archive.handleHigh;
-	cmdbuf[3]=0x0;
-	cmdbuf[4]=0x1; //buffer1 size
-	cmdbuf[5]=0x1; //buffer1 size
-	cmdbuf[6]=0x1a;
-	cmdbuf[7]=(u32)&b1;
-	cmdbuf[8]=0x1c;
-	cmdbuf[9]=(u32)&b2;
- 
-	Result ret=0;
-	if((ret=svcSendSyncRequest(handle)))return ret;
- 
-	return cmdbuf[1];
-}
-
-const char HOME[2] = "/";
-const char SDMC_CURSOR[4] = "<<<";
-const char SAVE_CURSOR[4] = ">>>";
-const char NULL_CURSOR[4] = "   ";
-
-enum state
-{
-    SELECT_SDMC,
-    SELECT_SAVE,
-    CONFIRM_DELETE,
-    CONFIRM_OVERWRITE
-};
-enum state machine_state;
-
-PrintConsole titleBar, sdmcList, saveList, sdmcCursor, saveCursor;
-PrintConsole statusBar, instructions;
-
-void redrawCursor(int* cursor_y, int currentEntryCount)
-{
+    if (dir->lsOffset && (*cursor_y == 0))
+    {
+        dir->lsOffset--;
+        *cursor_y = 1;
+        //debugOut("reached top of listing");
+        //printf("dir->lsOffset is %d",dir->lsOffset);
+        printDir(dir);
+    }
     if (*cursor_y<0)
         *cursor_y = 0;
-    int cursor_y_bound = HEIGHT-4;
-    if (currentEntryCount+1<cursor_y_bound)
-        cursor_y_bound = currentEntryCount+1;
+    int cursor_y_bound = HEIGHT-5;
+    if (dir->dirEntryCount+1<cursor_y_bound)
+        cursor_y_bound = dir->dirEntryCount+1;
     if (*cursor_y>cursor_y_bound)
+    {
         *cursor_y = cursor_y_bound;
+        if (dir->dirEntryCount+2>MAX_LS_LINES+dir->lsOffset)
+        {
+            dir->lsOffset++;
+            //debugOut("scrolling down listing");
+            //printf("dir->lsOffset is %d",dir->lsOffset);
+            
+            printDir(dir);
+        }
+    }
     switch(machine_state)
     {
         case SELECT_SAVE:
@@ -218,12 +336,17 @@ void redrawCursor(int* cursor_y, int currentEntryCount)
     }
 }
 
-void debugOut(char* garbled)
+void printInstructions()
 {
-    consoleSelect(&statusBar);
+    consoleSelect(&instructions);
     consoleClear();
-    textcolour(NEONGREEN);
-    printf(garbled);
+    textcolour(WHITE);
+    wordwrap("svdt is tdvs, reversed and without vowels. Use it to transfer files between your SD card and your save data. If you don't see any save data, restart until you can select a target app.\n",BOTTOM_WIDTH);
+    wordwrap("> Press L/R to point at save/SD data, and up/down to point at a specific file or folder.\n",BOTTOM_WIDTH);
+    wordwrap("> Press X to delete file. (Deleting folders is purposefully omitted here.)\n",BOTTOM_WIDTH);
+    wordwrap("> Press A to navigate inside a folder. Press B to return to the parent folder, if there is one.\n",BOTTOM_WIDTH);
+    wordwrap("> Press Y to copy selected file/folder to the working directory of the other data.\n",BOTTOM_WIDTH);
+    wordwrap("> Press START to stop while you're ahead.\n",BOTTOM_WIDTH);
 }
 
 int main()
@@ -244,10 +367,10 @@ int main()
     consoleSetWindow(&titleBar,0,0,TOP_WIDTH,HEIGHT);
     consoleSetWindow(&saveCursor,0,3,3,HEIGHT-3);
     consoleSetWindow(&saveList,CURSOR_WIDTH,3,LIST_WIDTH,HEIGHT-3);
-    consoleSetWindow(&sdmcCursor,TOP_WIDTH-CURSOR_WIDTH,3,CURSOR_WIDTH,HEIGHT-3);
-    consoleSetWindow(&sdmcList,TOP_WIDTH/2,3,LIST_WIDTH,HEIGHT-3);
-    consoleSetWindow(&statusBar,0,0,BOTTOM_WIDTH,2);
-    consoleSetWindow(&instructions,0,3,BOTTOM_WIDTH,HEIGHT-2);
+    consoleSetWindow(&sdmcCursor,TOP_WIDTH/2,3,CURSOR_WIDTH,HEIGHT-3);
+    consoleSetWindow(&sdmcList,TOP_WIDTH/2+CURSOR_WIDTH,3,LIST_WIDTH,HEIGHT-3);
+    consoleSetWindow(&statusBar,0,0,BOTTOM_WIDTH,8);
+    consoleSetWindow(&instructions,0,8,BOTTOM_WIDTH,HEIGHT-2);
     
 	consoleSelect(&titleBar);
     textcolour(SALMON);
@@ -261,22 +384,15 @@ int main()
     lsDir cwd_sdmc, cwd_save;
     strncpy(cwd_sdmc.thisDir,HOME,MAX_PATH_LENGTH);
     strncpy(cwd_save.thisDir,HOME,MAX_PATH_LENGTH);
-    initDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle,(char*)HOME,NULL);
-    initDir(&cwd_save,&saveGameArchive,&saveGameFsHandle,(char*)HOME,NULL);
+    scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+    scanDir(&cwd_save,&saveGameArchive,&saveGameFsHandle);
     
     consoleSelect(&sdmcList);
     printDir(&cwd_sdmc);
     consoleSelect(&saveList);
     printDir(&cwd_save);
     
-    consoleSelect(&instructions);
-    textcolour(WHITE);
-    wordwrap("svdt is tdvs, reversed and without vowels. Use it to transfer files between your SD card and your save data. If you don't see any save data, restart until you can select a target app.\n",BOTTOM_WIDTH);
-    wordwrap("* Press L/R to point at save/SD data, and up/down to point at a specific file or folder.\n",BOTTOM_WIDTH);
-    wordwrap("* Press X to delete file. (Deleting folders is purposefully omitted here.)\n",BOTTOM_WIDTH);
-    wordwrap("* Press A to navigate inside a folder. Press B to return to the parent folder, if there is one.\n",BOTTOM_WIDTH);
-    wordwrap("* Press Y to copy selected file/folder to the working directory of the other data.\n",BOTTOM_WIDTH);
-    wordwrap("* Press START to stop while you're ahead.\n",BOTTOM_WIDTH);
+    printInstructions();
     
     consoleSelect(&statusBar);
     textcolour(NEONGREEN);
@@ -288,35 +404,52 @@ int main()
     gotoxy(0,0);
     printf(SDMC_CURSOR);
     int cursor_y = 0;
-    int currentEntryCount = cwd_sdmc.dirEntryCount;
     lsDir* ccwd = &cwd_sdmc;
     PrintConsole* curList = &sdmcList;
     Handle* curFsHandle = &sdmcFsHandle;
     FS_archive* curArchive = &sdmcArchive;
+    
+    u8 sdmcCurrent, sdmcPrevious;
+    sdmcCurrent = 1;
             
 	while (aptMainLoop())
 	{
 		hidScanInput();
+        int cwd_needs_update = 0;
+        sdmcPrevious = sdmcCurrent; 
+        FSUSER_IsSdmcDetected(NULL, &sdmcCurrent);
+        if(sdmcCurrent != sdmcPrevious)
+        {
+            if(sdmcPrevious)
+            {
+                consoleSelect(&statusBar);
+                consoleClear();
+                textcolour(RED);
+                wordwrap("svdt cannot detect your SD card. To continue using it, please eject and reinstall your SD card, or force-reboot your 3DS.", BOTTOM_WIDTH);
+            } else {
+                if(curList == &sdmcList)
+                    cwd_needs_update = 1;
+                printInstructions();
+            }
+        }
 		if(hidKeysDown() & KEY_START)break;
         if(hidKeysDown() & (KEY_L | KEY_DLEFT))
         {
             consoleSelect(&sdmcCursor);
             consoleClear();
             machine_state = SELECT_SAVE;
-            currentEntryCount = cwd_save.dirEntryCount;
-            redrawCursor(&cursor_y,currentEntryCount);
+            redrawCursor(&cursor_y,ccwd);
             ccwd = &cwd_save;
             curList = &saveList;
             curFsHandle = &saveGameFsHandle;
             curArchive = &saveGameArchive;
         }
-        if(hidKeysDown() & (KEY_R | KEY_DRIGHT))
+        if((hidKeysDown() & (KEY_R | KEY_DRIGHT)) && sdmcCurrent)
         {
             consoleSelect(&saveCursor);
             consoleClear();
             machine_state = SELECT_SDMC;
-            currentEntryCount = cwd_sdmc.dirEntryCount;
-            redrawCursor(&cursor_y,currentEntryCount);
+            redrawCursor(&cursor_y,ccwd);
             ccwd = &cwd_sdmc;
             curList = &sdmcList;
             curFsHandle = &sdmcFsHandle;
@@ -325,79 +458,65 @@ int main()
         if(hidKeysDown() & (KEY_UP))
         {
             cursor_y--;
-            redrawCursor(&cursor_y,currentEntryCount);
+            redrawCursor(&cursor_y,ccwd);
         }
         if(hidKeysDown() & (KEY_DOWN))
         {
             cursor_y++;
-            redrawCursor(&cursor_y,currentEntryCount);
+            redrawCursor(&cursor_y,ccwd);
         }
         if(hidKeysDown() & KEY_A)
         {
-            debugOut("creating lsDir pointer");
-            lsDir* temp_ccwd = (lsDir*)malloc(sizeof(lsDir));
-            memset(temp_ccwd,0,sizeof(lsDir));
-            int directory_was_selected = 0;
             switch (cursor_y)
             {
                 case 0:
-                    debugOut("cursor_y = 0, so nothing happens");
+                    debugOut("refreshing current directory");
+                    cwd_needs_update = 1;
                     break;
                 case 1:
-                    debugOut("cursor_y = 1, so we check for parent");
-                    if(ccwd->parentDir)
+                    if (strcmp("/",(const char*)ccwd->thisDir))
                     {
-                        directory_was_selected = 1;
-                        debugOut("we have parent, so moving to temp");
-                        temp_ccwd = ccwd->parentDir;
-                        debugOut("freeDir");
-                        freeDir(ccwd);
-                        debugOut("free");
-                        free(ccwd);
-                        debugOut("and now some formalities");
-                        ccwd = temp_ccwd;
-                        currentEntryCount = ccwd->dirEntryCount;
+                        gotoParentDirectory(ccwd);
+                        debugOut("navigating to parent directory");
+                        cwd_needs_update = 1;
                     }
                     break;
                 default: ;
-                    debugOut("presumably a random entry was clicked");
                     lsLine* selection = ccwd->firstLine;
                     int i;
-                    for (i=1;i<cursor_y-2;i++)
+                    debugOut(selection->thisLine);
+                    for (i=0;i<cursor_y+ccwd->lsOffset-2;i++)
                     {
                         selection = selection->nextLine;
                     }
-                    debugOut("we should be a good number of entries down the line");
+                    debugOut(selection->thisLine);
+                    printf(" isDir: %d",(int)selection->isDirectory);
                     if (selection->isDirectory)
                     {
-                        directory_was_selected = 1;
-                        consoleSelect(&statusBar);
-                        textcolour(NEONGREEN);
-                        printf("isDirectory is %d",(int)(selection->isDirectory));
-                        debugOut("moving to initDir");
-                        initDir(temp_ccwd,curArchive,curFsHandle,selection->thisLine,ccwd);
+                        cwd_needs_update = 1;
+                        //consoleSelect(&statusBar);
+                        //textcolour(NEONGREEN);
+                        //printf("isDirectory is %d",(int)(selection->isDirectory));
+                        //debugOut("moving to initDir");
+                        //temp_ccwd = (lsDir*)malloc(sizeof(lsDir));
+                        //memset(temp_ccwd,0,sizeof(lsDir));
+                        gotoSubDirectory(ccwd,selection->thisLine);
+                        debugOut("navigating to subdirectory");
                     }
                     break;
             }
-            if(directory_was_selected)
-            {
-                ccwd = temp_ccwd;
-                currentEntryCount = ccwd->dirEntryCount;
-                consoleSelect(curList);
-                printDir(ccwd);
-                
-                switch (machine_state)
-                {
-                    case SELECT_SAVE:
-                        cwd_save = *ccwd;
-                        break;
-                    case SELECT_SDMC:
-                        cwd_sdmc = *ccwd;
-                        break;
-                    default:
-                        break;
-                }
-            }
+        }
+        if(cwd_needs_update)
+        {
+            freeDir(ccwd);
+            scanDir(ccwd,curArchive,curFsHandle);
+            debugOut("scanned current directory");
+            printf("%s\n dirEntryCount %d",ccwd->thisDir,ccwd->dirEntryCount);
+            //debugOut("and now some formalities");
+            consoleSelect(curList);
+            consoleClear();
+            printDir(ccwd);
+            redrawCursor(&cursor_y,ccwd);
         }
         switch (machine_state)
         {
