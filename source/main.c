@@ -631,6 +631,8 @@ int main()
         {
             if (machine_state == CONFIRM_OVERWRITE)
             {
+                machine_state = previous_state;
+                previous_state = CONFIRM_OVERWRITE;
                 if (curArchive==&sdmcArchive)
                     deleteFile(deletePath,&saveGameArchive,&saveGameFsHandle);
                 if (curArchive==&saveGameArchive)
@@ -638,8 +640,6 @@ int main()
                     
                 copyFile(ccwd,overwritePath,overwriteSize,notccwd);
                 notccwd_needs_update = 1;
-                machine_state = previous_state;
-                previous_state = CONFIRM_OVERWRITE;
             } else {
                 debugOut("attempting to copy selection");
                 int i;
