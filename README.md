@@ -21,6 +21,7 @@ Put svdt.3dsx, svdt.smdh, and svdt.xml in sd:/3ds/svdt/. Run from the homebrew l
 * Press START to exit back to the homebrew launcher.
 
 ### Known issues
+* Some games don't let svdt start up, leaving it hanging on an incoherent screen. This is also an issue with profi200's save_manager (and perhaps could be correlated with regionFOUR incompatibility?), but save_manager is designed simply enough that it will still work if you press the right buttons. This needs to be entered into consideration for svdt as well.
 * The homebrew launcher may hang while trying to start svdt, on a blue or white or otherwise abstract screen. I swear it's not my fault.
 * The homebrew launcher doesn't always show the target app selection screen. svdt has no mechanism in place at the moment to check whether there is a target app, but this should be fairly straightforward to implement (check for target app name?). If svdt starts without a target, then the output is garbled slightly at first, but it functions for the most part as a SD data browser. There are better SD card browsers, so using svdt in this way is not recommended.
 * svdt does not handle running out of space gracefully. *This is because if the save data does run out of space, then trying to continue writing to save data (even after reinitialising FS handles and archives) may corrupt it.* For now, if svdt detects any problem at all with manipulating files, it just throws a fatal error and asks you to quit out. There may not really be a better option.
