@@ -5,6 +5,12 @@ svdt is a save explorer and manager for the 3DS. It is heavily based on smealum'
 ### Installation and startup
 Put svdt.3dsx, svdt.smdh, and svdt.xml in sd:/3ds/svdt/. Run from the homebrew launcher. Make sure you can select a target app, since svdt will want to access its save data.
 
+For games that don't handle gfxInitDefault() well for some reason (Animal Crossing: New Leaf is a prominent example), svdt has an emergency mode. Since the homebrew launcher doesn't care about the L/R shoulder buttons, these are ideal for binding to functions that need to be executed before the application gets to gfxInitDefault().
+* Hold down the left shoulder button while starting svdt to dump the save into a time-stamped folder in the SD root directory.
+* Hold down the right shoulder button while starting svdt to dump the contents of sd:/svdt_inject/ into the target save data. If the directory does not exist, nothing is attempted.
+
+These functions are available for all games, not just misbehaving ones.
+
 ### Brief UI guide
 * There are two panes in view. The left pane lists files and directories in the target app's save data. The right pane does the same for the SD card. Both listings start at root.
 * A cursor to the left of the active listing indicates the current selected entry. Use up/down on the D-pad to move the cursor up and down the listing. Use L/R D-pad or shoulder buttons to switch which listing is selected (SD versus save data).
