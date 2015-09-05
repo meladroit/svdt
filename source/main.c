@@ -48,6 +48,8 @@ void freeDir(lsDir* dir)
     dir->firstLine = NULL;
 }
 
+int canHasConsole = 0;
+
 // hey look yet another 3ds_hb_menu derivative
 void gotoParentDirectory(lsDir* dir)
 {
@@ -66,7 +68,8 @@ void gotoSubDirectory(lsDir* dir, char* basename)
         //printf("\nappending slash");
         cwd = strcat(cwd,"/");
     }
-    printf("\nsubdir path: %s\n",cwd);
+    if (canHasConsole)
+        printf("\nsubdir path: %s\n",cwd);
 }
 
 char* lsDirBasename(lsDir* dir)
@@ -104,8 +107,11 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
         res = FSDIR_Read(dirHandle, &entriesRead, 1, &entry);
         if (res)
         {
-            printf("error reading directory\n");
-            printf("result code %08x\n",(unsigned int)res);
+            if (canHasConsole)
+            {
+                printf("error reading directory\n");
+                printf("result code %08x\n",(unsigned int)res);
+            }
             return;
         }
         unicodeToChar(pathname,entry.name,MAX_PATH_LENGTH);
@@ -132,7 +138,6 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
 const char HOME[2] = "/";
 const char SDMC_CURSOR[4] = ">>>";
 const char SAVE_CURSOR[4] = ">>>";
-const char NULL_CURSOR[4] = "   ";
 
 enum state
 {
@@ -159,21 +164,27 @@ void debugOut(char* garbled)
 int detectOverwrite(char* path, lsDir* destDir)
 {   
     if (!destDir || !path) return -1;
-    debugOut("checking for overwrite risk");
-    printf("checking against %s",path);
+    if (canHasConsole)
+    {
+        debugOut("checking for overwrite risk");
+        printf("checking against %s",path);
+    }
     lsLine* curLine = destDir->firstLine;
-    debugOut("starting check");
+    if (canHasConsole)
+        debugOut("starting check");
     while (curLine)
     {
         if (!(curLine->isDirectory))
             if (!strcmp(curLine->thisLine,path))
             {
-                printf("found overwrite: %s\n",curLine->thisLine);
+                if (canHasConsole)
+                    printf("found overwrite: %s\n",curLine->thisLine);
                 return 1;
             }
         curLine = curLine->nextLine;
     }
-    printf("no overwrite\n");
+    if (canHasConsole)
+        printf("no overwrite\n");
     return 0;
 }
 
@@ -211,29 +222,42 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
     
     u8* data = (u8*) malloc(size);
     
-    debugOut("reading original file ...");
-    printf("original path %s\n",origpath);
+    if (canHasConsole)
+    {
+        debugOut("reading original file ...");
+        printf("original path %s\n",origpath);
+    }
     Result res = loadFile(origpath,data,curArchive,curFsHandle,size);
     if(res)
     {
-        debugOut("error reading file");
-        printf("result code %08x",(unsigned int)res);
+        if (canHasConsole)
+        {
+            debugOut("error reading file");
+            printf("result code %08x",(unsigned int)res);
+        }
         return;
     }
-    debugOut("writing new file ...");
-    printf("destination path %s\n",destpath);
+    if (canHasConsole)
+    {
+        debugOut("writing new file ...");
+        printf("destination path %s\n",destpath);
+    }
     res = writeFile(destpath,data,(u32)size,destArchive,destFsHandle);
+    free(data);
     if(res)
     {
-        debugOut("error writing file");
-        printf("result code %08x\n",(unsigned int)res);
-        if(res==RES_OUT_OF_SPACE_CARD || res==RES_OUT_OF_SPACE_ESHOP)
-            printf("(you may be running out of save space!)\n");
+        if (canHasConsole)
+        {
+            debugOut("error writing file");
+            printf("result code %08x\n",(unsigned int)res);
+            if(res==RES_OUT_OF_SPACE_CARD || res==RES_OUT_OF_SPACE_ESHOP)
+                printf("(you may be running out of save space!)\n");
+        }
         machine_state = SVDT_IS_KILL;
         return;
     }
-    debugOut("success!");
-    free(data);
+    if (canHasConsole)
+        debugOut("success!");
 }
 
 void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
@@ -249,9 +273,11 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
     strncpy(origpath,dir->thisDir,MAX_PATH_LENGTH);
     if (path)
         strcat(origpath,path);
-    debugOut("constructing paths:");
+    if (canHasConsole)
+        debugOut("constructing paths:");
     strncpy(destpath,destDir->thisDir,MAX_PATH_LENGTH);
-    printf("origpath %s\n",origpath);
+    if (canHasConsole)
+        printf("origpath %s\n",origpath);
     switch(machine_state)
     {
         case SELECT_SAVE:
@@ -269,7 +295,8 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
         default:
             break;
     }
-    debugOut("got handles");
+    if (canHasConsole)
+        debugOut("got handles");
     //debugOut("manipulating destDir->thisDir");
     //printf("currently %s\n",destDir->thisDir);
     if (destName)
@@ -287,8 +314,11 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
     }
     if(destArchive==&saveGameArchive)
     {
-        printf("\ncalling ControlArchive\n");
+        if (canHasConsole)
+            printf("\ncalling ControlArchive\n");
         FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
+        // this is absolutely necessary
+        // otherwise any changes we make don't stick!
     }
     if (path)
         gotoSubDirectory(dir,path);
@@ -311,6 +341,7 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
     if (path)
         gotoParentDirectory(dir);
     gotoParentDirectory(destDir);
+    scanDir(dir,curArchive,curFsHandle);
 }
 
 void printDir(lsDir* dir)
@@ -467,12 +498,65 @@ void printInstructions()
     wordwrap("> Press START to stop while you're ahead.\n",BOTTOM_WIDTH);
 }
 
+int checkInjectDirectory(char* path, lsDir* dir)
+{   
+    lsLine* curLine = dir->firstLine;
+    while (curLine)
+    {
+        if (curLine->isDirectory)
+            if (!strcmp(curLine->thisLine,path))
+                return 1;
+        curLine = curLine->nextLine;
+    }
+    return 0;
+}
+
 int main()
 {
-	gfxInitDefault();
-	gfxSet3D(false);
-
 	filesystemInit();
+    lsDir cwd_sdmc, cwd_save;
+    strncpy(cwd_sdmc.thisDir,HOME,MAX_PATH_LENGTH);
+    strncpy(cwd_save.thisDir,HOME,MAX_PATH_LENGTH);
+    scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+    scanDir(&cwd_save,&saveGameArchive,&saveGameFsHandle);
+    
+    hidScanInput();
+    
+    if(hidKeysHeld() & KEY_L)
+    {
+        // super secret emergency save backup mode
+        // for games that won't give away services so easily, like ACNL
+        machine_state = SELECT_SAVE;
+        char timeStr[16] = {0};                                    
+        time_t temps = time(NULL);
+        strftime(timeStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
+        copyDir(&cwd_save,NULL,&cwd_sdmc,timeStr);
+        scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+        canHasConsole = 2;
+    }
+    
+    if((hidKeysHeld() & KEY_R) && !canHasConsole)
+    {
+        // super secret emergency save write mode
+        // again, for games like ACNL that won't play nice
+        machine_state = SELECT_SDMC;
+        if (!checkInjectDirectory("svdt_inject", &cwd_sdmc))
+        {
+            canHasConsole = -1;
+        } else {
+            gotoSubDirectory(&cwd_sdmc,"svdt_inject");
+            freeDir(&cwd_sdmc);
+            scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+            copyDir(&cwd_sdmc,NULL,&cwd_save,NULL);
+            scanDir(&cwd_save,&saveGameArchive,&saveGameFsHandle);
+            gotoParentDirectory(&cwd_sdmc);
+            scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+            canHasConsole = 3;
+        }
+    }
+    
+    gfxInitDefault();
+	gfxSet3D(false);
 
 	consoleInit(GFX_TOP, &titleBar);
 	consoleInit(GFX_TOP, &sdmcList);
@@ -490,6 +574,24 @@ int main()
     consoleSetWindow(&statusBar,0,0,BOTTOM_WIDTH,HEIGHT);//8);
     //consoleSetWindow(&instructions,0,8,BOTTOM_WIDTH,HEIGHT-2);
     
+    printInstructions();
+    switch (canHasConsole)
+    {
+        case -1:
+            debugOut("emergency inject invoked without directory");        
+            break;
+        case 2:
+            debugOut("emergency dump to SD was invoked");
+            break;
+        case 3:
+            debugOut("emergency savegame inject was invoked");
+            break;
+        default:
+            debugOut("successful startup, I guess. Huh.");
+            break;
+    }
+    canHasConsole = 1;
+    
 	consoleSelect(&titleBar);
     textcolour(SALMON);
     printf("svdt 0.1, meladroit/willidleaway\n");
@@ -499,11 +601,6 @@ int main()
     printf("save data:");
     gotoxy(TOP_WIDTH/2,2);
     printf("SD data:");
-    lsDir cwd_sdmc, cwd_save;
-    strncpy(cwd_sdmc.thisDir,HOME,MAX_PATH_LENGTH);
-    strncpy(cwd_save.thisDir,HOME,MAX_PATH_LENGTH);
-    scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
-    scanDir(&cwd_save,&saveGameArchive,&saveGameFsHandle);
     
     machine_state = SELECT_SAVE;
     printDir(&cwd_save);
@@ -511,11 +608,6 @@ int main()
     machine_state = SELECT_SDMC;
     printDir(&cwd_sdmc);
     
-    printInstructions();
-    
-    consoleSelect(&statusBar);
-    debugOut("Successful startup, I guess. Huh.");
-
     consoleSelect(&sdmcCursor);
     consoleClear();
     gotoxy(0,0);
@@ -569,9 +661,13 @@ int main()
                 textcolour(RED);
                 wordwrap("svdt cannot detect your SD card. To continue using it, please eject and reinstall your SD card, or force-reboot your 3DS.", BOTTOM_WIDTH);
             } else {
+                filesystemSoftReset();
                 if(curList == &sdmcList)
+                {
                     cwd_needs_update = 1;
-                printInstructions();
+                } else {
+                    notccwd_needs_update = 1;
+                }
             }
         }
         if(hidKeysDown() & KEY_SELECT)
@@ -605,6 +701,11 @@ int main()
                             if(selection->isDirectory)
                             {
                                 FSUSER_DeleteDirectoryRecursively(curFsHandle,*curArchive,FS_makePath(PATH_CHAR,deletePath));
+                                if(curArchive==&saveGameArchive)
+                                {
+                                    //printf("\ncalling ControlArchive\n");
+                                    FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
+                                }
                             } else {
                                 deleteFile(deletePath,curArchive,curFsHandle);
                             }

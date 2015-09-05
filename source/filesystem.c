@@ -72,6 +72,23 @@ Result filesystemExit()
 	return ret;
 }
 
+Result filesystemSoftReset()
+{
+    // exit and reinit without giving up those handles
+	Result ret;
+	
+	ret = FSUSER_CloseArchive(&saveGameFsHandle, &saveGameArchive);
+	ret = FSUSER_CloseArchive(&sdmcFsHandle, &sdmcArchive);
+
+	saveGameArchive = (FS_archive){0x00000004, (FS_path){PATH_EMPTY, 1, (u8*)""}};
+	ret = FSUSER_OpenArchive(&saveGameFsHandle, &saveGameArchive);
+
+	sdmcArchive = (FS_archive){0x00000009, (FS_path){PATH_EMPTY, 1, (u8*)""}};
+	ret = FSUSER_OpenArchive(&sdmcFsHandle, &sdmcArchive);
+
+	return ret;
+}
+
 Result FSUSER_ControlArchive(Handle handle, FS_archive archive)
 {
 	u32* cmdbuf=getThreadCommandBuffer();
@@ -142,7 +159,7 @@ Result writeFile(char* path, u8* data, u32 size, FS_archive* archive, Handle* fs
 
     if(archive==&saveGameArchive)
     {
-        printf("calling ControlArchive\n");
+        //printf("calling ControlArchive\n");
         ret = FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
     }
 
@@ -159,7 +176,7 @@ Result deleteFile(char* path, FS_archive* archive, Handle* fsHandle)
 
     if(archive==&saveGameArchive)
     {
-        printf("\ncalling ControlArchive\n");
+        //printf("\ncalling ControlArchive\n");
         ret = FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
     }
     return ret;
