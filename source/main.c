@@ -8,6 +8,7 @@
 #include "filesystem.h"
 #include "text.h"
 #include "utils.h"
+#include "smdh.h"
 
 #define MAX_PATH_LENGTH 1024
 #define MAX_LS_LINES HEIGHT-4
@@ -135,6 +136,110 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
     FSDIR_Close(dirHandle); // oh god how did I forget this line
 }
 
+// functions and structs for getting target title
+
+typedef struct lsTitle {
+    u64 thisTitle;
+    struct lsTitle* nextTitle;
+} lsTitle;
+
+lsTitle* firstTitle = NULL;
+
+Result getTitleList(u8 mediatype, int* usable_count)
+{
+    amInit();
+    int i;
+    // cribbing from 3ds_hb_menu for the ???th time
+	u32 num;
+	Result ret = AM_GetTitleCount(mediatype, &num);
+    if(ret)
+        return ret;
+    u64* tmp = (u64*)malloc(sizeof(u64) * num);
+    if(!tmp)
+        return -1;
+    ret = AM_GetTitleIdList(mediatype, num, tmp);
+    amExit();
+    int running_count = 0;
+    lsTitle* currentTitle;
+    currentTitle = NULL;
+    // only keep system + normal + demo titles
+    for (i=0;i<num;i++)
+    {
+        u64 tid = tmp[i];
+        u32 tid_high = tid >> 32;
+        if (tid_high == 0x00040010 || tid_high == 0x00040000 || tid_high == 0x00040002)
+        {
+            lsTitle* tempTitle = (lsTitle*)malloc(sizeof(lsTitle));
+            tempTitle->thisTitle = tmp[i];
+            tempTitle->nextTitle = NULL;
+            if(!firstTitle)
+            {
+                firstTitle = tempTitle;
+            }
+            else
+                currentTitle->nextTitle = tempTitle;
+            currentTitle = tempTitle;
+            running_count++;
+        }
+    }
+    *usable_count = running_count;
+    return ret;
+}
+
+void clearTitleList()
+{
+    // still totally cribbing from 3ds_hb_menu
+    lsTitle* title = firstTitle;
+    lsTitle* temp = NULL;
+    while(title)
+    {
+        temp = title->nextTitle;
+        title->nextTitle = NULL;
+        free(title);
+        title = temp;
+    }
+    firstTitle = NULL;
+}
+
+Result getTitleTitle(u64 tid, u8 mediatype, char* titleTitle)
+{
+    Handle fileHandle;
+    smdh_s* icon = malloc(sizeof(smdh_s));
+    u32 tid_high = tid >> 32;
+    u32 tid_low = tid & 0xffffffff;
+    u32 archivePath[] = {tid_low, tid_high, mediatype, 0x00000000};
+	static const u32 filePath[] = {0x00000000, 0x00000000, 0x00000002, 0x6E6F6369, 0x00000000};	
+	Result ret = FSUSER_OpenFileDirectly(&sdmcFsHandle, &fileHandle, (FS_archive){0x2345678a, (FS_path){PATH_BINARY, 0x10, (u8*)archivePath}}, (FS_path){PATH_BINARY, 0x14, (u8*)filePath}, FS_OPEN_READ, FS_ATTRIBUTE_NONE);
+    if(ret) return ret;
+    u32 bytesRead;
+    ret = FSFILE_Read(fileHandle, &bytesRead, 0x0, icon, sizeof(smdh_s));
+    char buffer[0x40];
+    unicodeToChar(buffer,icon->applicationTitles[1].shortDescription,0x40);
+    strncpy(titleTitle,buffer,0x40);
+	FSFILE_Close(fileHandle);
+    return ret;
+}
+
+Result nthTitleInList(int n, u8 mediatype, char* titleTitle)
+{
+    int i;
+    lsTitle* currentTitle = firstTitle;
+    for (i=0;i<n;i++)
+    {
+        if(!currentTitle)
+            return -1;
+        currentTitle = currentTitle->nextTitle;
+    }
+    Result res = getTitleTitle(currentTitle->thisTitle,mediatype,titleTitle);
+    if(res)
+    {
+        sprintf(titleTitle,"[tid:%08x%08x]",(unsigned int)(currentTitle->thisTitle>>32),(unsigned int)(currentTitle->thisTitle & 0xffffffff));
+    }
+    return res;
+}
+
+// back to file browsing stuff
+
 const char HOME[2] = "/";
 const char SDMC_CURSOR[4] = ">>>";
 const char SAVE_CURSOR[4] = ">>>";
@@ -145,7 +250,8 @@ enum state
     SELECT_SAVE,
     CONFIRM_DELETE,
     CONFIRM_OVERWRITE,
-    SVDT_IS_KILL
+    SVDT_IS_KILL,
+    SET_TARGET_TITLE
 };
 enum state machine_state;
 enum state previous_state;
@@ -514,6 +620,25 @@ int checkInjectDirectory(char* path, lsDir* dir)
 int main()
 {
 	filesystemInit();
+    FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,"/svdt"));
+    
+    int titleTitle_set = 0;
+    int titleTitles_available;
+    char titleTitle[0x40];
+    char destPath[MAX_PATH_LENGTH];
+    char tempStr[16] = {0};
+    time_t temps = time(NULL);
+    strftime(tempStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
+    strncpy(titleTitle,tempStr,MAX_PATH_LENGTH);
+    u8 mediatype = 2;
+    FSUSER_GetMediaType(saveGameFsHandle,&mediatype);
+    if (mediatype==2)
+    {
+        // we fetch target app title automatically for gamecards
+        getTitleTitle(0x0,2,titleTitle);
+        titleTitle_set = 1;
+    }
+    
     lsDir cwd_sdmc, cwd_save;
     strncpy(cwd_sdmc.thisDir,HOME,MAX_PATH_LENGTH);
     strncpy(cwd_save.thisDir,HOME,MAX_PATH_LENGTH);
@@ -527,10 +652,21 @@ int main()
         // super secret emergency save backup mode
         // for games that won't give away services so easily, like ACNL
         machine_state = SELECT_SAVE;
-        char timeStr[16] = {0};                                    
-        time_t temps = time(NULL);
-        strftime(timeStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
-        copyDir(&cwd_save,NULL,&cwd_sdmc,timeStr);
+        memset(destPath,0,MAX_PATH_LENGTH);
+        gotoSubDirectory(&cwd_sdmc,"svdt");
+        if (titleTitle_set)
+        {
+            strcat(destPath,"/svdt/");
+            strcat(destPath,titleTitle);
+            FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,destPath));
+            gotoSubDirectory(&cwd_sdmc,titleTitle);
+        }
+        copyDir(&cwd_save,NULL,&cwd_sdmc,tempStr);
+        gotoParentDirectory(&cwd_sdmc);
+        if (titleTitle_set)
+        {
+            gotoParentDirectory(&cwd_sdmc);
+        }
         scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
         canHasConsole = 2;
     }
@@ -554,6 +690,8 @@ int main()
             canHasConsole = 3;
         }
     }
+    if (mediatype!=2)
+        machine_state = SET_TARGET_TITLE;
     
     gfxInitDefault();
 	gfxSet3D(false);
@@ -566,7 +704,7 @@ int main()
 	consoleInit(GFX_BOTTOM, &statusBar);
 	//consoleInit(GFX_BOTTOM, &instructions);
 
-    consoleSetWindow(&titleBar,0,0,TOP_WIDTH,HEIGHT);
+    consoleSetWindow(&titleBar,0,0,TOP_WIDTH,3);
     consoleSetWindow(&saveCursor,0,3,3,HEIGHT-3);
     consoleSetWindow(&saveList,CURSOR_WIDTH,3,LIST_WIDTH,HEIGHT-3);
     consoleSetWindow(&sdmcCursor,TOP_WIDTH/2,3,CURSOR_WIDTH,HEIGHT-3);
@@ -574,11 +712,15 @@ int main()
     consoleSetWindow(&statusBar,0,0,BOTTOM_WIDTH,HEIGHT);//8);
     //consoleSetWindow(&instructions,0,8,BOTTOM_WIDTH,HEIGHT-2);
     
-    printInstructions();
+    if (machine_state != SET_TARGET_TITLE)
+    {
+        printInstructions();
+        printf("Target app:\n %s\n",titleTitle);
+    }
     switch (canHasConsole)
     {
         case -1:
-            debugOut("emergency inject invoked without directory");        
+            debugOut("emergency inject invoked w/o directory");        
             break;
         case 2:
             debugOut("emergency dump to SD was invoked");
@@ -590,11 +732,10 @@ int main()
             debugOut("successful startup, I guess. Huh.");
             break;
     }
-    canHasConsole = 1;
     
 	consoleSelect(&titleBar);
     textcolour(SALMON);
-    printf("svdt 0.1a, meladroit/willidleaway\n");
+    printf("svdt 0.2, meladroit/willidleaway\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);
@@ -624,11 +765,109 @@ int main()
     
     u8 sdmcCurrent, sdmcPrevious;
     sdmcCurrent = 1;
+    
+    if (mediatype!=2)
+        machine_state = SET_TARGET_TITLE;
+    if (machine_state == SET_TARGET_TITLE)
+    {
+        getTitleList(mediatype,&titleTitles_available);
+        consoleSelect(&statusBar);
+        gotoxy(0,10);
+        int i;
+        for (i=0;i<BOTTOM_WIDTH;i++) { printf(" "); }
+        nthTitleInList(titleTitle_set,mediatype,titleTitle);
+        gotoxy(1,10);
+        printf("<");
+        gotoxy(BOTTOM_WIDTH-2,10);
+        printf(">");
+        gotoxy((BOTTOM_WIDTH-strlen(titleTitle))/2,10);
+        textcolour(NEONGREEN);
+        printf(titleTitle);
+        gotoxy(0,12);
+        textcolour(SALMON);
+        wordwrap("Target app is not on gamecard. Fetching target app titles automatically is not implemented for NAND/SD apps. Use left/right on D-pad with the A button to select the correct target app name. Press B to skip.",BOTTOM_WIDTH);
+        textcolour(WHITE);
+    }
             
 	while (aptMainLoop())
 	{
 		hidScanInput();
 		if(hidKeysDown() & KEY_START)break;
+        if(machine_state == SET_TARGET_TITLE)
+        {
+            int titleTitle_update = 0;
+            if(hidKeysDown() & KEY_START)break;
+            if(hidKeysDown() & KEY_LEFT)
+            {
+                titleTitle_set--;
+                titleTitle_set+= titleTitles_available;
+                titleTitle_update = 1;
+            }
+            if(hidKeysDown() & KEY_RIGHT)
+            {
+                titleTitle_set++;
+                titleTitle_update = 1;
+            }
+            if (titleTitle_update)
+            {
+                titleTitle_set = titleTitle_set % titleTitles_available;
+                gotoxy(0,10);
+                int i;
+                for (i=0;i<BOTTOM_WIDTH;i++) { printf(" "); }
+                nthTitleInList(titleTitle_set,mediatype,titleTitle);
+                gotoxy(1,10);
+                printf("<");
+                gotoxy(BOTTOM_WIDTH-2,10);
+                printf(">");
+                gotoxy((BOTTOM_WIDTH-strlen(titleTitle))/2,10);
+                textcolour(NEONGREEN);
+                printf(titleTitle);
+                titleTitle_update = 0;
+                textcolour(WHITE);
+            }
+            if(hidKeysDown() & KEY_A)
+            {
+                titleTitle_set = 1;
+                printInstructions();
+                printf("Target app:\n %s\n",titleTitle);
+                previous_state = machine_state;
+                machine_state = SELECT_SDMC;
+                if (canHasConsole == 2)
+                {
+                    debugOut("trying to rename dump directory");
+                    char tempPath[MAX_PATH_LENGTH] = {0};
+                    memset(destPath,0,MAX_PATH_LENGTH);
+                    strcat(destPath,"/svdt/");
+                    strcat(destPath,titleTitle);
+                    FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,destPath));
+                    strcat(destPath,"/");
+                    strcat(destPath,tempStr);
+                    strcat(tempPath,"/svdt/");
+                    strcat(tempPath,tempStr);
+                    Result res = FSUSER_RenameDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,tempPath),sdmcArchive,FS_makePath(PATH_CHAR,destPath));
+                    if (res)
+                    {
+                        printf("failed with result code %08x",(unsigned int)res);
+                    } else { printf("success!"); }
+                }
+                scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+                clearTitleList();
+            }
+            if(hidKeysDown() & KEY_B)
+            {
+                titleTitle_set = 0;
+                printInstructions();
+                wordwrap("Target app title unknown. Copies of / will be timestamped.",BOTTOM_WIDTH);
+                previous_state = machine_state;
+                machine_state = SELECT_SDMC;
+                clearTitleList();
+            }
+            gspWaitForVBlank();
+            // Flush and swap framebuffers
+            gfxFlushBuffers();
+            gfxSwapBuffers();
+            continue;
+        }
         if(machine_state == SVDT_IS_KILL)
         {
             if(previous_state != SVDT_IS_KILL)
@@ -749,12 +988,18 @@ int main()
                     case 0:
                         if (!strcmp("/",(const char*)ccwd->thisDir))
                         {
-                            debugOut("dumping root");            
-                            char timeStr[16] = {0};                                    
-                            time_t temps = time(NULL);
-                            strftime(timeStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
-                            printf("using timestamp %s",timeStr);
-                            copyDir(ccwd,NULL,notccwd,timeStr);
+                            debugOut("dumping root");
+                            memset(destPath,0,MAX_PATH_LENGTH);
+                            temps = time(NULL);
+                            strftime(tempStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
+                            if (titleTitle_set)
+                            {
+                                strcat(destPath,titleTitle);
+                                strcat(destPath,"_");
+                            }
+                            strcat(destPath,tempStr);
+                            printf("using destPath %s",destPath);
+                            copyDir(ccwd,NULL,notccwd,destPath);
                         }
                         else
                         {
