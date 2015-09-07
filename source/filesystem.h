@@ -13,4 +13,8 @@ Result loadFile(char* path, void* dst, FS_archive* archive, Handle* fsHandle, u6
 Result writeFile(char* path, u8* data, u32 size, FS_archive* archive, Handle* fsHandle);
 Result deleteFile(char* path, FS_archive* archive, Handle* fsHandle);
 u64 sizeFile(char* path, FS_archive* archive, Handle* fsHandle);
+Result readBytesFromSaveFile(const char* filename, u64 offset, u8* buffer, u32 size);
+Result writeBytesToSaveFile(const char* filename, u64 offset, u8* buffer, u32 size);
+Result getSaveGameFileSize(const char* filename, u64* size);
+Result doesFileExist(const char* filename, Handle* fsHandle, FS_archive archive);
 #endif

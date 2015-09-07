@@ -213,3 +213,72 @@ u64 sizeFile(char* path, FS_archive* archive, Handle* fsHandle)
     FSFILE_Close(fileHandle);
     return size;
 }
+
+Result readBytesFromSaveFile(const char* filename, u64 offset, u8* buffer, u32 size)
+{
+    Result ret;
+    Handle fileHandle;
+
+    ret=FSUSER_OpenFile(&saveGameFsHandle, &fileHandle, saveGameArchive, FS_makePath(PATH_CHAR, filename), FS_OPEN_READ, FS_ATTRIBUTE_NONE);
+    if(ret!=0)return ret;
+
+    ret=FSFILE_Read(fileHandle, NULL, offset, buffer, size);
+    if(ret!=0)return ret;
+    
+    FSFILE_Close(fileHandle);
+    return ret;
+}
+
+Result writeBytesToSaveFile(const char* filename, u64 offset, u8* buffer, u32 size)
+{
+    Result ret;
+    Handle fileHandle;
+
+    ret=FSUSER_OpenFile(&saveGameFsHandle, &fileHandle, saveGameArchive, FS_makePath(PATH_CHAR, filename), FS_OPEN_WRITE, FS_ATTRIBUTE_NONE);
+    if(ret!=0)return ret;
+
+    ret=FSFILE_Write(fileHandle, NULL, offset, buffer, size, 0x10001);
+    if(ret!=0)return ret;
+    
+    FSFILE_Close(fileHandle);
+    return ret;
+}
+
+Result getSaveGameFileSize(const char* filename, u64* size)
+{
+    Result ret;
+    Handle fileHandle;
+
+    ret=FSUSER_OpenFile(&saveGameFsHandle, &fileHandle, saveGameArchive, FS_makePath(PATH_CHAR, filename), FS_OPEN_READ, FS_ATTRIBUTE_NONE);
+    if(ret!=0)return ret;
+
+    ret=FSFILE_GetSize(fileHandle, size);
+    if(ret!=0)return ret;
+    
+    FSFILE_Close(fileHandle);
+    
+    if(*size)
+        return ret;
+    else
+        return -1;
+}
+
+Result doesFileExist(const char* filename, Handle* fsHandle, FS_archive archive)
+{
+    Result ret;
+    Handle fileHandle;
+    u64 size;
+
+    ret=FSUSER_OpenFile(fsHandle, &fileHandle, sdmcArchive, FS_makePath(PATH_CHAR, filename), FS_OPEN_READ, FS_ATTRIBUTE_NONE);
+    if(ret!=0)return ret;
+
+    ret=FSFILE_GetSize(fileHandle, &size);
+    if(ret!=0)return ret;
+    
+    FSFILE_Close(fileHandle);
+    
+    if(size)
+        return ret;
+    else
+        return -1;
+}
