@@ -148,7 +148,10 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
         return;
     }
     if((isSecureFile(destpath))&&(whichSecureGame!=SECURE_UNKNOWN))
+    {
+        debugOut("rewriting secure value from value loaded at startup");
         res = writeSecureValue();
+    }
     if(res)
     {
         debugOut("error rewriting secure value");

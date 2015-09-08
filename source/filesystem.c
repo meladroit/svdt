@@ -234,13 +234,16 @@ Result writeBytesToSaveFile(const char* filename, u64 offset, u8* buffer, u32 si
     Result ret;
     Handle fileHandle;
 
-    ret=FSUSER_OpenFile(&saveGameFsHandle, &fileHandle, saveGameArchive, FS_makePath(PATH_CHAR, filename), FS_OPEN_WRITE, FS_ATTRIBUTE_NONE);
-    if(ret!=0)return ret;
+    ret=FSUSER_OpenFile(&saveGameFsHandle, &fileHandle, saveGameArchive, FS_makePath(PATH_CHAR, filename), FS_OPEN_WRITE | FS_OPEN_CREATE, FS_ATTRIBUTE_NONE);
+    if(ret!=0)
+        return ret;
 
     ret=FSFILE_Write(fileHandle, NULL, offset, buffer, size, 0x10001);
-    if(ret!=0)return ret;
+    if(ret!=0)
+        return ret;
     
     FSFILE_Close(fileHandle);
+    ret = FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
     return ret;
 }
 

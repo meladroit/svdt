@@ -252,8 +252,6 @@ void printSecureGame()
 Result getSecureValue()
 {
     Result res = 0;
-    if(secureValueSet)
-        return 0;
     switch (whichSecureGame)
     {
         case SECURE_POKERW:
@@ -347,9 +345,6 @@ Result getPokeRumbleProps(u64* compressed_size, u64* decompressed_size, int* is_
 
 Result getPokeRumbleSecureValue()
 {
-    if(secureValueSet)
-        return 0;
-    
     u64 compressed_size, decompressed_size;
     u32 crc32_check;
     int is_compressed;
