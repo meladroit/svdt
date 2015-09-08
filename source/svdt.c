@@ -115,7 +115,6 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
 
 Result getTitleList(u8 mediatype, int* usable_count)
 {
-    amInit();
     int i;
     // cribbing from 3ds_hb_menu for the ???th time
 	u32 num;
@@ -126,7 +125,6 @@ Result getTitleList(u8 mediatype, int* usable_count)
     if(!tmp)
         return -1;
     ret = AM_GetTitleIdList(mediatype, num, tmp);
-    amExit();
     int running_count = 0;
     lsTitle* currentTitle;
     currentTitle = NULL;

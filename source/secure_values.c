@@ -64,6 +64,9 @@ int isSecureFile(const char* destPath)
             if(!strcmp(destPath,"/system_data.bin"))
                 return 1;
         default:
+            //printf("destPath: %s\n",destPath);
+            //printf(" against: %s\n",secureFilenames[whichSecureGame]);
+            //printf("strcmp result is %d\n",strcmp(destPath,secureFilenames[whichSecureGame]));
             if(!strcmp(destPath,secureFilenames[whichSecureGame]))
                 return 1;
             break;
@@ -110,8 +113,10 @@ void secureGameFromProductCode(const char* productCode)
     secureValueSet = 0;
     // let's get Poke Rumble World out of the way ...
     if (!strncmp(productCode,pokeRumbleWorldCode,9))
+    {
         whichSecureGame = SECURE_POKERW;
         return;
+    }
     // ideally we actually have asr.dat in /3ds/svdt
     if(!checkSecureConfig())
     {
@@ -140,7 +145,7 @@ void secureGameFromProductCode(const char* productCode)
     {
         if (!strncmp(productCode,secureProductCodes[i],9))
         {
-            whichSecureGame = (secureGame)i;
+            whichSecureGame = i;
             return;
         }
     }
@@ -241,10 +246,12 @@ void printSecureGame()
             printf("no, not inferred at all");
             break;
     }
+    printf("\n    (ASR%d)",whichSecureGame);
 }
 
 Result getSecureValue()
 {
+    Result res = 0;
     if(secureValueSet)
         return 0;
     switch (whichSecureGame)
@@ -262,7 +269,7 @@ Result getSecureValue()
                 ret = fscanf(offsets,"%s %08x ",filenameBuffer,&offset);
                 if (ret==EOF)
                     break;
-                readBytesFromSaveFile(filenameBuffer,(u32)offset,secureValue,SECURE_VALUE_SIZE);
+                res = readBytesFromSaveFile(filenameBuffer,(u32)offset,secureValue,SECURE_VALUE_SIZE);
             }
             fclose(offsets);
             break;
@@ -270,13 +277,14 @@ Result getSecureValue()
             return getSecureValue2(configProductCode);
             break;
         case SECURE_UNKNOWN:
+            return -1;
             break;
         default:
-            readBytesFromSaveFile(secureFilenames[whichSecureGame],secureOffsets[whichSecureGame],secureValue,SECURE_VALUE_SIZE);
+            res = readBytesFromSaveFile(secureFilenames[whichSecureGame],secureOffsets[whichSecureGame],secureValue,SECURE_VALUE_SIZE);
             break;
     }
     secureValueSet = 1;
-    return 0;
+    return res;
 }
 
 Result getSecureValue2(const char* productCode)
@@ -285,7 +293,7 @@ Result getSecureValue2(const char* productCode)
         return getPokeRumbleSecureValue();
     if(checkSecureConfig())
         return -1;
-    if(!secureValueSet)
+    if(secureValueSet)
         return 0;
     FILE* config = fopen(secureConfigBasename,"rb");
     int ret = 0;
@@ -330,7 +338,7 @@ Result getPokeRumbleProps(u64* compressed_size, u64* decompressed_size, int* is_
         if(res) return res;
         *decompressed_size|= temp;
         *crc32_check = *crc32_check << 8;
-        res = readBytesFromSaveFile(POKERW_SVPATH,0x2c+i,&temp2,1);
+        res = readBytesFromSaveFile(POKERW_SVPATH,0x08+i,&temp2,1);
         if(res) return res;
         *crc32_check|= temp2;
     }
@@ -339,12 +347,14 @@ Result getPokeRumbleProps(u64* compressed_size, u64* decompressed_size, int* is_
 
 Result getPokeRumbleSecureValue()
 {
-    if(!secureValueSet)
+    if(secureValueSet)
         return 0;
+    
     u64 compressed_size, decompressed_size;
     u32 crc32_check;
     int is_compressed;
     Result res = getPokeRumbleProps(&compressed_size,&decompressed_size,&is_compressed,&crc32_check);
+    if(res) return res;
     
     uLong crc = crc32(0L, Z_NULL, 0);
     
@@ -362,6 +372,7 @@ Result getPokeRumbleSecureValue()
         free(initial_buffer);
     } else {
         res = readBytesFromSaveFile(POKERW_SVPATH,0x30,final_buffer,decompressed_size);
+        if(res) return res;
         crc = crc32(crc,final_buffer,compressed_size);
     }
     if(decompressed_size!=(u32)ul_decompressed_size)
@@ -417,7 +428,7 @@ Result writeSecureValue2(const char* productCode)
 {
     if (!strncmp(productCode,pokeRumbleWorldCode,9))
         return getPokeRumbleSecureValue();
-    if(checkSecureConfig())
+    if(!checkSecureConfig())
         return -1;
     if(!secureValueSet)
         return -1;

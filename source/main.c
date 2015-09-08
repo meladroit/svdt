@@ -16,7 +16,7 @@
 #define RES_OUT_OF_SPACE_CARD 0xc86044cd  // probably
 #define RES_OUT_OF_SPACE_ESHOP 0xd8604664 // at least I think so
 
-#define HELD_THRESHOLD 8
+#define HELD_THRESHOLD 10
 
 int canHasConsole = 0;
 lsTitle* firstTitle = NULL;
@@ -146,6 +146,13 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
         }
         machine_state = SVDT_IS_KILL;
         return;
+    }
+    if((isSecureFile(destpath))&&(whichSecureGame!=SECURE_UNKNOWN))
+        res = writeSecureValue();
+    if(res)
+    {
+        debugOut("error rewriting secure value");
+        printf(" result code %08x\n",(unsigned int)res);
     }
     if (canHasConsole)
         debugOut("success!");
@@ -424,6 +431,7 @@ int main()
         titleTitle_set = 1;
     } else {
         secureGameFromFilesystem();
+        getSecureValue();
     }
     
     lsDir cwd_sdmc, cwd_save;
@@ -525,11 +533,19 @@ int main()
     {
         printf("secure game inferred from filesystem:\n ");
         printSecureGame();
+        if(secureValueSet)
+        {
+            debugOut("secure value set");
+            int i;
+            for(i=0;i<8;i++)
+                printf("%02x ",secureValue[i]);
+            putchar('\n');
+        }
     }
     
 	consoleSelect(&titleBar);
     textcolour(SALMON);
-    printf("svdt 0.2a, meladroit/willidleaway\n");
+    printf("svdt 0.3, meladroit/willidleaway\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);
@@ -655,10 +671,17 @@ int main()
                 clearTitleList();
                 // if we're here, then mediatype!=2, so ...
                 secureGameFromProductCode(productCode);
-                debugOut("ASR inferred from product code:\n ");
+                debugOut("ASR inferred from product code:");
                 printSecureGame();
-                printf("\n(product code is %s)\n",productCode);
-                printf("(or maybe it's %s)\n",productCodeBuffer);
+                getSecureValue();
+                if(secureValueSet)
+                {
+                    debugOut("secure value set");
+                    int i;
+                    for(i=0;i<8;i++)
+                        printf("%02x ",secureValue[i]);
+                    putchar('\n');
+                }
             }
             if(hidKeysDown() & KEY_B)
             {
@@ -953,6 +976,15 @@ int main()
                         //memset(temp_ccwd,0,sizeof(lsDir));
                         gotoSubDirectory(ccwd,selection->thisLine);
                         debugOut("navigating to subdirectory");
+                    }
+                    if ((whichSecureGame!=SECURE_UNKNOWN)&&(machine_state==SELECT_SAVE))
+                    {
+                        char* destPath = (char*)malloc(strlen(ccwd->thisDir)+strlen(selection->thisLine)+1);
+                        memset(destPath,0,strlen(ccwd->thisDir)+strlen(selection->thisLine)+1);
+                        strcat(destPath,ccwd->thisDir);
+                        strcat(destPath,selection->thisLine);
+                        printf("\n isSecureFile: %d",isSecureFile(destPath));
+                        free(destPath);
                     }
                     break;
             }
