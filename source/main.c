@@ -36,7 +36,8 @@ enum state
     CONFIRM_DELETE,
     CONFIRM_OVERWRITE,
     SVDT_IS_KILL,
-    SET_TARGET_TITLE
+    SET_TARGET_TITLE,
+    CONFIRM_SAVE_ROOT
 };
 enum state machine_state;
 enum state previous_state;
@@ -550,7 +551,7 @@ int main()
     
 	consoleSelect(&titleBar);
     textcolour(SALMON);
-    printf("svdt 0.3 [\e0], meladroit/willidleaway\n");
+    printf("svdt 0.3 [\xe0], meladroit/willidleaway\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);
@@ -724,6 +725,68 @@ int main()
         }
         int cwd_needs_update = 0;
         int notccwd_needs_update = 0;
+        if(machine_state == CONFIRM_SAVE_ROOT)
+        {
+            int goGoGadgetCopy = 0;
+            if(previous_state != CONFIRM_SAVE_ROOT)
+            {
+                previous_state = CONFIRM_SAVE_ROOT;
+                consoleSelect(&statusBar);
+                wordwrap("You are about to extract all target save data to the SD card. To extract into a folder in the current SD working directory, press Y. To extract into a folder in /svdt/, press A. Press B to cancel.\n",BOTTOM_WIDTH);
+            }
+            if(hidKeysDown() & KEY_B)
+            {
+                debugOut("Save data extraction cancelled.");
+                machine_state = SELECT_SAVE;
+                previous_state = CONFIRM_SAVE_ROOT;
+            }
+            if(hidKeysDown() & KEY_A)
+            {
+                char origSDPath[MAX_PATH_LENGTH];
+                strncpy(origSDPath,notccwd->thisDir,MAX_PATH_LENGTH);
+                strncpy(notccwd->thisDir,HOME,MAX_PATH_LENGTH);
+                scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+                gotoSubDirectory(&cwd_sdmc,"svdt");
+                if (titleTitle_set)
+                {
+                    strcat(destPath,"/svdt/");
+                    strcat(destPath,titleTitle);
+                    FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,destPath));
+                    gotoSubDirectory(&cwd_sdmc,titleTitle);
+                }
+                machine_state = SELECT_SAVE;
+                copyDir(&cwd_save,NULL,&cwd_sdmc,tempStr);
+                strncpy(notccwd->thisDir,origSDPath,MAX_PATH_LENGTH);
+                scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+                goGoGadgetCopy = 1;           
+            }
+            if(hidKeysDown() & KEY_Y)
+            {
+                if (titleTitle_set)
+                {
+                    strcat(destPath,titleTitle);
+                    strcat(destPath,"_");
+                }
+                strcat(destPath,tempStr);
+                printf("using destPath %s",destPath);
+                machine_state = SELECT_SAVE;
+                copyDir(ccwd,NULL,notccwd,destPath);
+                scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
+                goGoGadgetCopy = 1;
+            }
+            if(goGoGadgetCopy)
+            {
+                debugOut("Save data extraction complete.");
+                previous_state = CONFIRM_SAVE_ROOT;
+                notccwd_needs_update = 1;
+            } else {
+                gspWaitForVBlank();
+                // Flush and swap framebuffers
+                gfxFlushBuffers();
+                gfxSwapBuffers();
+                continue;
+            }
+        }
         sdmcPrevious = sdmcCurrent; 
         FSUSER_IsSdmcDetected(NULL, &sdmcCurrent);
         if(sdmcCurrent != sdmcPrevious)
@@ -802,7 +865,7 @@ int main()
                 debugOut("delete unconfirmed");
             }
         }
-        if(hidKeysDown() & KEY_Y)
+        if((hidKeysDown() & KEY_Y)&&(previous_state!=CONFIRM_SAVE_ROOT))
         {
             if (machine_state == CONFIRM_OVERWRITE)
             {
@@ -827,14 +890,18 @@ int main()
                             memset(destPath,0,MAX_PATH_LENGTH);
                             temps = time(NULL);
                             strftime(tempStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
-                            if (titleTitle_set)
+                            if (machine_state == SELECT_SAVE)
                             {
-                                strcat(destPath,titleTitle);
-                                strcat(destPath,"_");
+                                previous_state = machine_state;
+                                machine_state = CONFIRM_SAVE_ROOT;
+                                continue;
+                            } else {
+                                debugOut("dumping SD root to save data is disabled at present");
+                                continue;
                             }
-                            strcat(destPath,tempStr);
+                            /*strcat(destPath,tempStr);
                             printf("using destPath %s",destPath);
-                            copyDir(ccwd,NULL,notccwd,destPath);
+                            copyDir(ccwd,NULL,notccwd,destPath);*/
                         }
                         else
                         {
@@ -900,6 +967,7 @@ int main()
         {
             consoleSelect(&saveCursor);
             consoleClear();
+            previous_state = machine_state;
             machine_state = SELECT_SDMC;
             ccwd = &cwd_sdmc;
             notccwd = &cwd_save;
