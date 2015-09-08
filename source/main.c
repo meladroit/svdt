@@ -149,12 +149,14 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
     }
     if((isSecureFile(destpath))&&(whichSecureGame!=SECURE_UNKNOWN))
     {
-        debugOut("rewriting secure value from value loaded at startup");
+        if (canHasConsole)
+            debugOut("rewriting secure value from value loaded at startup");
         res = writeSecureValue();
     }
     if(res)
     {
-        debugOut("error rewriting secure value");
+        if (canHasConsole)
+            debugOut("error rewriting secure value");
         printf(" result code %08x\n",(unsigned int)res);
     }
     if (canHasConsole)

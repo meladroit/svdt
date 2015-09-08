@@ -240,7 +240,7 @@ void printSecureGame()
             printf("apparently asr.dat knows what it is");
             break;
         case SECURE_POKERW:
-            printf("oh god it's Pokemon Rumble World [broken at the moment]");
+            printf("oh god it's Pokemon Rumble World\n[write back is broken at the moment]");
             break;
         default:
             printf("no, not inferred at all");
