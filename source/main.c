@@ -548,7 +548,7 @@ int main()
     
 	consoleSelect(&titleBar);
     textcolour(SALMON);
-    printf("svdt 0.3, meladroit/willidleaway\n");
+    printf("svdt 0.3 [\e0], meladroit/willidleaway\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);
