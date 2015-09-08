@@ -90,7 +90,6 @@ int isSecureFile2(const char* destPath, const char* productCode)
     while (ret!=EOF)
     {
         ret = fscanf(config,"%s %s %08x ",productCodeBuffer,filenameBuffer,&offset);
-        if (feof(config)) break;
         if (!strncmp(productCodeBuffer,configProductCode,9) && !strncmp(filenameBuffer,destPath,strlen(destPath)))
             return 1;
     }
@@ -123,21 +122,22 @@ void secureGameFromProductCode(const char* productCode)
         // and ideally we actually have the product code in there ...
         FILE* config = fopen(secureConfigBasename,"rb");
         int ret = 0;
-        char productCodeBuffer[9];
-        char* out1;
-        unsigned int* out2;
-        out1 = NULL;
-        out2 = NULL;
+        char productCodeBuffer[9] = {0};
+        char out1[MAX_PATH_LENGTH] = {0};
+        unsigned int out2 = 0;
+        printf("\nasr.dat opened\n");
         while (ret!=EOF)
         {
-            ret = fscanf(config,"%s %s %08x ",productCodeBuffer,out1,out2);
+            ret = fscanf(config,"%s %s %08x ",productCodeBuffer,out1,&out2);
             if (!strncmp(productCode,productCodeBuffer,9))
             {
+                printf("found match, so closing file\n");
                 strcpy(configProductCode,productCode);
                 fclose(config);
                 whichSecureGame = SECURE_CONFIG; return;
             }
         }
+        printf("reached EOF without match, apparently\n");
         fclose(config);
     }
     // however, if asr.dat is absent, then we have info to fall back on ...
@@ -265,8 +265,6 @@ Result getSecureValue()
             while (ret!=EOF)
             {
                 ret = fscanf(offsets,"%s %08x ",filenameBuffer,&offset);
-                if (ret==EOF)
-                    break;
                 res = readBytesFromSaveFile(filenameBuffer,(u32)offset,secureValue,SECURE_VALUE_SIZE);
             }
             fclose(offsets);
@@ -291,8 +289,7 @@ Result getSecureValue2(const char* productCode)
         return getPokeRumbleSecureValue();
     if(checkSecureConfig())
         return -1;
-    if(secureValueSet)
-        return 0;
+    printf("\nopening asr.dat\n");
     FILE* config = fopen(secureConfigBasename,"rb");
     int ret = 0;
     char productCodeBuffer[9];
@@ -301,10 +298,11 @@ Result getSecureValue2(const char* productCode)
     while (ret!=EOF)
     {
         ret = fscanf(config,"%s %s %08x ",productCodeBuffer,filenameBuffer,&offset);
-        if (feof(config)) break;
+        printf("%s %s %08x\n",productCodeBuffer,filenameBuffer,offset);
         if (!strncmp(productCode,productCodeBuffer,9))
         {
-            readBytesFromSaveFile(filenameBuffer,offset,secureValue,SECURE_VALUE_SIZE);
+            Result res = readBytesFromSaveFile(filenameBuffer,offset,secureValue,SECURE_VALUE_SIZE);
+            if(res) return res;
             secureValueSet = 1;
             fclose(config);
             return 0;
@@ -399,8 +397,6 @@ Result writeSecureValue()
             while (ret!=EOF)
             {
                 ret = fscanf(offsets,"%s %08x ",filenameBuffer,&offset);
-                if (ret==EOF)
-                    break;
                 writeBytesToSaveFile(filenameBuffer,(u32)offset,secureValue,SECURE_VALUE_SIZE);
             }
             fclose(offsets);
@@ -435,7 +431,6 @@ Result writeSecureValue2(const char* productCode)
     while (ret!=EOF)
     {
         ret = fscanf(config,"%s %s %08x ",productCodeBuffer,filenameBuffer,&offset);
-        if (feof(config)) break;
         if (!strncmp(productCode,productCodeBuffer,9))
             writeBytesToSaveFile(filenameBuffer,offset,secureValue,SECURE_VALUE_SIZE);
     }
