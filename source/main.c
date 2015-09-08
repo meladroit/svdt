@@ -8,6 +8,7 @@
 #include "text.h"
 #include "svdt.h"
 #include "filesystem.h"
+#include "secure_values.h"
 
 #define MAX_LS_LINES HEIGHT-4
 #define CURSOR_WIDTH 3
@@ -15,8 +16,14 @@
 #define RES_OUT_OF_SPACE_CARD 0xc86044cd  // probably
 #define RES_OUT_OF_SPACE_ESHOP 0xd8604664 // at least I think so
 
+#define HELD_THRESHOLD 8
+
 int canHasConsole = 0;
 lsTitle* firstTitle = NULL;
+
+u8 mediatype = 2;
+//int productCodeKnown = 0;
+char productCode[9] = {0};
 
 const char HOME[2] = "/";
 const char SDMC_CURSOR[4] = ">>>";
@@ -400,6 +407,7 @@ int main()
 	filesystemInit();
     FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,"/svdt"));
     
+    u64 tid;
     int titleTitle_set = 0;
     int titleTitles_available;
     char titleTitle[0x40];
@@ -408,13 +416,14 @@ int main()
     time_t temps = time(NULL);
     strftime(tempStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
     strncpy(titleTitle,tempStr,MAX_PATH_LENGTH);
-    u8 mediatype = 2;
     FSUSER_GetMediaType(saveGameFsHandle,&mediatype);
     if (mediatype==2)
     {
         // we fetch target app title automatically for gamecards
         getTitleTitle(0x0,2,titleTitle);
         titleTitle_set = 1;
+    } else {
+        secureGameFromFilesystem();
     }
     
     lsDir cwd_sdmc, cwd_save;
@@ -474,6 +483,7 @@ int main()
     
     gfxInitDefault();
 	gfxSet3D(false);
+    amInit();
 
 	consoleInit(GFX_TOP, &titleBar);
 	consoleInit(GFX_TOP, &sdmcList);
@@ -511,6 +521,11 @@ int main()
             debugOut("successful startup, I guess. Huh.");
             break;
     }
+    if (mediatype!=2)
+    {
+        printf("secure game inferred from filesystem:\n ");
+        printSecureGame();
+    }
     
 	consoleSelect(&titleBar);
     textcolour(SALMON);
@@ -544,6 +559,7 @@ int main()
     
     u8 sdmcCurrent, sdmcPrevious;
     sdmcCurrent = 1;
+    char productCodeBuffer[16] = {0};
     
     if (mediatype!=2)
         machine_state = SET_TARGET_TITLE;
@@ -554,7 +570,9 @@ int main()
         gotoxy(0,10);
         int i;
         for (i=0;i<BOTTOM_WIDTH;i++) { printf(" "); }
-        nthTitleInList(titleTitle_set,mediatype,titleTitle);
+        nthTitleInList(titleTitle_set,mediatype,titleTitle,&tid);
+        AM_GetTitleProductCode(mediatype,tid,productCodeBuffer);
+        strncpy(productCode,productCodeBuffer,9);
         gotoxy(1,10);
         printf("<");
         gotoxy(BOTTOM_WIDTH-2,10);
@@ -568,6 +586,8 @@ int main()
         textcolour(WHITE);
     }
             
+    int heldU = 0;
+    int heldD = 0;
 	while (aptMainLoop())
 	{
 		hidScanInput();
@@ -593,7 +613,7 @@ int main()
                 gotoxy(0,10);
                 int i;
                 for (i=0;i<BOTTOM_WIDTH;i++) { printf(" "); }
-                nthTitleInList(titleTitle_set,mediatype,titleTitle);
+                nthTitleInList(titleTitle_set,mediatype,titleTitle,&tid);
                 gotoxy(1,10);
                 printf("<");
                 gotoxy(BOTTOM_WIDTH-2,10);
@@ -603,6 +623,8 @@ int main()
                 printf(titleTitle);
                 titleTitle_update = 0;
                 textcolour(WHITE);
+                AM_GetTitleProductCode(mediatype,tid,productCodeBuffer);
+                strncpy(productCode,productCodeBuffer,9);
             }
             if(hidKeysDown() & KEY_A)
             {
@@ -631,6 +653,12 @@ int main()
                 }
                 scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
                 clearTitleList();
+                // if we're here, then mediatype!=2, so ...
+                secureGameFromProductCode(productCode);
+                debugOut("ASR inferred from product code:\n ");
+                printSecureGame();
+                printf("\n(product code is %s)\n",productCode);
+                printf("(or maybe it's %s)\n",productCodeBuffer);
             }
             if(hidKeysDown() & KEY_B)
             {
@@ -856,11 +884,29 @@ int main()
         {
             cursor_y--;
             redrawCursor(&cursor_y,ccwd);
-        }
+            heldU = 0;
+        } else if (hidKeysHeld() & (KEY_UP)) {
+            heldU++;
+            if (heldU > HELD_THRESHOLD)
+            {
+                cursor_y--;
+                redrawCursor(&cursor_y,ccwd);       
+                heldU = 0;
+            }
+        }        
         if(hidKeysDown() & (KEY_DOWN))
         {
             cursor_y++;
             redrawCursor(&cursor_y,ccwd);
+            heldD = 0;
+        } else if (hidKeysHeld() & (KEY_DOWN)) {
+            heldD++;
+            if (heldD > HELD_THRESHOLD)
+            {
+                cursor_y++;
+                redrawCursor(&cursor_y,ccwd);
+                heldD = 0;
+            }
         }
         if(hidKeysDown() & KEY_B)
         {
@@ -959,7 +1005,7 @@ int main()
 	}
 
 	filesystemExit();
-
+    amExit();
 	gfxExit();
 	return 0;
 }

@@ -185,10 +185,19 @@ Result getTitleTitle(u64 tid, u8 mediatype, char* titleTitle)
     unicodeToChar(buffer,icon->applicationTitles[1].shortDescription,0x40);
     strncpy(titleTitle,buffer,0x40);
 	FSFILE_Close(fileHandle);
+    
+    // excise special characters from title
+    // (necessary because we just use this string for directory names)
+    // (thanks Blazingflare on GBAtemp)
+    char* forbiddenChar;
+    while ((forbiddenChar = strpbrk(titleTitle,"<>:\"\\/|?*")))
+    {
+        titleTitle[forbiddenChar-titleTitle] = ' ';
+    }
     return ret;
 }
 
-Result nthTitleInList(int n, u8 mediatype, char* titleTitle)
+Result nthTitleInList(int n, u8 mediatype, char* titleTitle, u64* tid)
 {
     int i;
     lsTitle* currentTitle = firstTitle;
@@ -203,5 +212,6 @@ Result nthTitleInList(int n, u8 mediatype, char* titleTitle)
     {
         sprintf(titleTitle,"[tid:%08x%08x]",(unsigned int)(currentTitle->thisTitle>>32),(unsigned int)(currentTitle->thisTitle & 0xffffffff));
     }
+    *tid = currentTitle->thisTitle;
     return res;
 }

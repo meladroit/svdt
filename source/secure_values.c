@@ -12,6 +12,7 @@
 
 int secureValueSet = 0;
 u8 secureValue[SECURE_VALUE_SIZE] = {0};
+secureGame whichSecureGame = SECURE_UNKNOWN;
 
 const u32 const secureOffsets[PRECONF_GAMES] = {ACNL_OFFSET, SSB_OFFSET, POKETORU_OFFSET, POKEXY_OFFSET, POKEXY_OFFSET, POKEORAS_OFFSET, POKEORAS_OFFSET};
 const char const secureFilenames[PRECONF_GAMES][MAX_PATH_LENGTH] = {"/garden.dat", "/account_data.bin", "/savedata.bin", "/main", "/main", "/main", "/main"};
@@ -28,22 +29,89 @@ const char* const customSecurePath = "/svdt_sv_data";
 const char* const secureConfigPath = "/3ds/svdt/asr.dat";
 const char* const secureConfigBasename = "asr.dat";
 
+int isSecureFile(const char* destPath)
+{
+    switch (whichSecureGame)
+    {
+        case SECURE_POKERW:
+            return (!strcmp(destPath,POKERW_SVPATH));
+            break;
+        case SECURE_EMERGENCY: ;
+            FILE* offsets = fopen(customSecurePath,"rb");
+            char filenameBuffer[MAX_PATH_LENGTH];
+            unsigned int offset;
+            int ret = 0;
+            while (ret!=EOF)
+            {
+                ret = fscanf(offsets,"%s %08x ",filenameBuffer,&offset);
+                if (ret==EOF)
+                    break;
+                if (!strcmp(destPath,filenameBuffer))
+                {
+                    fclose(offsets);
+                    return 1;
+                }
+            }
+            fclose(offsets);
+            return 0;
+            break;
+        case SECURE_CONFIG:
+            return isSecureFile2(destPath,configProductCode);
+            break;
+        case SECURE_UNKNOWN:
+            break;
+        case SECURE_SSB:
+            if(!strcmp(destPath,"/system_data.bin"))
+                return 1;
+        default:
+            if(!strcmp(destPath,secureFilenames[whichSecureGame]))
+                return 1;
+            break;
+    }
+    return 0;
+}
+
+int isSecureFile2(const char* destPath, const char* productCode)
+{
+    if (!strncmp(productCode,pokeRumbleWorldCode,9))
+        return (!strcmp(destPath,POKERW_SVPATH));
+    if(checkSecureConfig())
+        return -1;
+    if(!secureValueSet)
+        return -1;
+    FILE* config = fopen(secureConfigBasename,"rb");
+    int ret = 0;
+    char productCodeBuffer[9];
+    char filenameBuffer[MAX_PATH_LENGTH];
+    unsigned int offset;
+    while (ret!=EOF)
+    {
+        ret = fscanf(config,"%s %s %08x ",productCodeBuffer,filenameBuffer,&offset);
+        if (feof(config)) break;
+        if (!strncmp(productCodeBuffer,configProductCode,9) && !strncmp(filenameBuffer,destPath,strlen(destPath)))
+            return 1;
+    }
+    return 0;
+}
+
 Result checkCustomSecureGame()
 {
-    return doesFileExist(customSecurePath,&sdmcFsHandle,sdmcArchive);
+    return doesFileNotExist(customSecurePath,&sdmcFsHandle,sdmcArchive);
 }
 
 Result checkSecureConfig()
 {
-    return doesFileExist(secureConfigPath,&sdmcFsHandle,sdmcArchive);
+    return doesFileNotExist(secureConfigPath,&sdmcFsHandle,sdmcArchive);
 }
 
-secureGame secureGameFromProductCode(const char* productCode)
+void secureGameFromProductCode(const char* productCode)
 {
     int i;
+    secureValueSet = 0;
     // let's get Poke Rumble World out of the way ...
     if (!strncmp(productCode,pokeRumbleWorldCode,9))
-        return SECURE_POKERW;
+        whichSecureGame = SECURE_POKERW;
+        return;
     // ideally we actually have asr.dat in /3ds/svdt
     if(!checkSecureConfig())
     {
@@ -61,53 +129,121 @@ secureGame secureGameFromProductCode(const char* productCode)
             if (!strncmp(productCode,productCodeBuffer,9))
             {
                 strcpy(configProductCode,productCode);
-                return SECURE_CONFIG;
+                fclose(config);
+                whichSecureGame = SECURE_CONFIG; return;
             }
         }
+        fclose(config);
     }
     // however, if asr.dat is absent, then we have info to fall back on ...
     for (i=0;i<PRECONF_GAMES;i++)
+    {
         if (!strncmp(productCode,secureProductCodes[i],9))
-            return i;
+        {
+            whichSecureGame = (secureGame)i;
+            return;
+        }
+    }
     // custom specifier does not take precedence over having the actual product code
     if(!checkCustomSecureGame())
-        return SECURE_EMERGENCY;
-    return SECURE_UNKNOWN;
+    {
+        whichSecureGame = SECURE_EMERGENCY;
+        return;
+    }
+    whichSecureGame = SECURE_UNKNOWN; return;
 }
 
-secureGame secureGameFromFilesystem()
+void secureGameFromFilesystem()
 {
     u64 size = 0;
+    secureValueSet = 0;
     // first, some sure guesses
     if(!getSaveGameFileSize("/garden.dat",&size))
-        return SECURE_ACNL;
+    {
+        whichSecureGame = SECURE_ACNL;
+        return;
+    }
     if(!getSaveGameFileSize(POKERW_SVPATH,&size))
     {
         // would like to check for cAVIAR4\x00 identifier (and >100 files in /00slot/?)
         char charviar[8] = {0};
         Result ret = readBytesFromSaveFile(POKERW_SVPATH,0x0,(u8*)charviar,8);
         if(!ret && !strcmp("cAVIAR4\x00",charviar))
-            return SECURE_POKERW;
+        {
+            whichSecureGame = SECURE_POKERW;
+            return;
+        }
     }
     if(!getSaveGameFileSize("/account_data.bin",&size))
+    {
         if(!getSaveGameFileSize("/system_data.bin",&size))
-            return SECURE_SSB;
+        {
+            whichSecureGame = SECURE_SSB;
+            return;
+        }
+    }
     // from here, the guesses are a little trickier
     // custom specifier absolutely takes precedence over these guesses
     if(!checkCustomSecureGame())
-        return SECURE_EMERGENCY;
+    {
+        whichSecureGame = SECURE_EMERGENCY;
+        return;
+    }
     if(!getSaveGameFileSize("/main",&size))
     {
         if (size < POKEORAS_OFFSET)
-            return SECURE_POKEX; // to be perfectly honest we don't care about X/Y
+            whichSecureGame = SECURE_POKEX; // to be perfectly honest we don't care about X/Y
         else
-            return SECURE_POKEOR; // ditto with OR/AS
+            whichSecureGame = SECURE_POKEOR; // ditto with OR/AS
+            
+        return;
     }
     // and finally we just give up before even guessing whether savedata.bin belongs to Shuffle
-    return SECURE_UNKNOWN;
+    whichSecureGame = SECURE_UNKNOWN;
+    return;
 }
 
-Result getSecureValue(secureGame whichSecureGame)
+void printSecureGame()
+{
+    switch (whichSecureGame)
+    {
+        case SECURE_ACNL:
+            printf("Animal Crossing: New Leaf");
+            break;
+        case SECURE_SSB:
+            printf("Super Smash Bros. for 3DS");
+            break;
+        case SECURE_POKETORU: //not implemented
+            printf("Pokemon Shuffle");
+            break;
+        case SECURE_POKEX:
+            printf("Pokemon X");
+            break;
+        case SECURE_POKEY:
+            printf("Pokemon Y");
+            break;
+        case SECURE_POKEOR:
+            printf("Pokemon Omega Ruby");
+            break;
+        case SECURE_POKEAS:
+            printf("Pokemon Alpha Sapphire");
+            break;
+        case SECURE_EMERGENCY:
+            printf("apparently you know what it is");
+            break;
+        case SECURE_CONFIG:
+            printf("apparently asr.dat knows what it is");
+            break;
+        case SECURE_POKERW:
+            printf("oh god it's Pokemon Rumble World");
+            break;
+        default:
+            printf("no, not inferred at all");
+            break;
+    }
+}
+
+Result getSecureValue()
 {
     if(secureValueSet)
         return 0;
@@ -164,9 +300,11 @@ Result getSecureValue2(const char* productCode)
         {
             readBytesFromSaveFile(filenameBuffer,offset,secureValue,SECURE_VALUE_SIZE);
             secureValueSet = 1;
+            fclose(config);
             return 0;
         }
     }
+    fclose(config);
     return -1;
 }
 
@@ -238,15 +376,12 @@ Result getPokeRumbleSecureValue()
     return 0;
 }
 
-Result writeSecureValue(secureGame whichSecureGame)
+Result writeSecureValue()
 {
     if(!secureValueSet)
         return -1;
     switch (whichSecureGame)
     {
-        case SECURE_SSB:
-            writeBytesToSaveFile("/system_data.bin",secureOffsets[whichSecureGame],secureValue,SECURE_VALUE_SIZE);
-            break;
         case SECURE_POKERW:
             writePokeRumbleSecureValue();
             break;
@@ -269,6 +404,8 @@ Result writeSecureValue(secureGame whichSecureGame)
             break;
         case SECURE_UNKNOWN:
             break;
+        case SECURE_SSB:
+            writeBytesToSaveFile("/system_data.bin",secureOffsets[whichSecureGame],secureValue,SECURE_VALUE_SIZE);
         default:
             writeBytesToSaveFile(secureFilenames[whichSecureGame],secureOffsets[whichSecureGame],secureValue,SECURE_VALUE_SIZE);
             break;
@@ -296,6 +433,7 @@ Result writeSecureValue2(const char* productCode)
         if (!strncmp(productCode,productCodeBuffer,9))
             writeBytesToSaveFile(filenameBuffer,offset,secureValue,SECURE_VALUE_SIZE);
     }
+    fclose(config);
     return 0;
 }
 

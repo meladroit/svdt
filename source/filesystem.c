@@ -263,13 +263,13 @@ Result getSaveGameFileSize(const char* filename, u64* size)
         return -1;
 }
 
-Result doesFileExist(const char* filename, Handle* fsHandle, FS_archive archive)
+Result doesFileNotExist(const char* filename, Handle* fsHandle, FS_archive archive)
 {
     Result ret;
     Handle fileHandle;
     u64 size;
 
-    ret=FSUSER_OpenFile(fsHandle, &fileHandle, sdmcArchive, FS_makePath(PATH_CHAR, filename), FS_OPEN_READ, FS_ATTRIBUTE_NONE);
+    ret=FSUSER_OpenFile(fsHandle, &fileHandle, archive, FS_makePath(PATH_CHAR, filename), FS_OPEN_READ, FS_ATTRIBUTE_NONE);
     if(ret!=0)return ret;
 
     ret=FSFILE_GetSize(fileHandle, &size);

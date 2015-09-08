@@ -34,4 +34,4 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle);
 Result getTitleList(u8 mediatype, int* usable_count);
 void clearTitleList();
 Result getTitleTitle(u64 tid, u8 mediatype, char* titleTitle);
-Result nthTitleInList(int n, u8 mediatype, char* titleTitle);
+Result nthTitleInList(int n, u8 mediatype, char* titleTitle, u64* tid);

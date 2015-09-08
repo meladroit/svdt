@@ -28,15 +28,19 @@ typedef enum secureGame
 
 extern int secureValueSet;
 extern u8 secureValue[SECURE_VALUE_SIZE];
+extern secureGame whichSecureGame;
 
+int isSecureFile(const char* destPath);
+int isSecureFile2(const char* destPath, const char* productCode);
 Result checkCustomSecureGame();
 Result checkSecureConfig();
-secureGame secureGameFromProductCode(const char* productCode);
-secureGame secureGameFromFilesystem();
-Result getSecureValue(secureGame whichSecureGame);
+void secureGameFromProductCode(const char* productCode);
+void secureGameFromFilesystem();
+void printSecureGame();
+Result getSecureValue();
 Result getSecureValue2(const char* productCode);
 Result getPokeRumbleProps(u64* compressed_size, u64* decompressed_size, int* is_compressed, u32* crc32_check);
 Result getPokeRumbleSecureValue();
-Result writeSecureValue(secureGame whichSecureGame);
+Result writeSecureValue();
 Result writeSecureValue2(const char* productCode);
 Result writePokeRumbleSecureValue();
