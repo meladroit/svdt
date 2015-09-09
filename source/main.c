@@ -694,6 +694,7 @@ int main()
                 titleTitle_set = 0;
                 printInstructions();
                 wordwrap("Target app title unknown. Copies of / will be timestamped.",BOTTOM_WIDTH);
+                whichSecureGame = SECURE_UNKNOWN;
                 previous_state = machine_state;
                 machine_state = SELECT_SDMC;
                 clearTitleList();

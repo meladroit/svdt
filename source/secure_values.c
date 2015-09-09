@@ -373,7 +373,7 @@ Result getPokeRumbleSecureValue()
     if (crc32_check!=(u32)crc)
         return -1;
         
-    strncpy((char*)secureValue,(char*)(final_buffer+decompressed_size-10),8);
+    memcpy((void*)secureValue,(void*)(final_buffer+decompressed_size-10),8);
     secureValueSet = 1;
     
     free(final_buffer);
@@ -418,7 +418,7 @@ Result writeSecureValue()
 Result writeSecureValue2(const char* productCode)
 {
     if (!strncmp(productCode,pokeRumbleWorldCode,9))
-        return getPokeRumbleSecureValue();
+        return writePokeRumbleSecureValue();
     if(!checkSecureConfig())
         return -1;
     if(!secureValueSet)
@@ -441,8 +441,12 @@ Result writeSecureValue2(const char* productCode)
 Result writePokeRumbleSecureValue()
 {
     int i;
-    if(!secureValueSet)
-        return -1;
+    if(!secureValueSet) return -1;
+    /*
+        secureValue[0] = 0xfb; secureValue[1] = 0x89; secureValue[2] = 0x06;
+        secureValue[3] = 0x14; secureValue[4] = 0x72; secureValue[5] = 0xdf;
+        secureValue[6] = 0x66; secureValue[7] = 0x1c;
+    */
     u64 compressed_size, decompressed_size;
     u32 crc32_check;
     int is_compressed;
@@ -474,21 +478,35 @@ Result writePokeRumbleSecureValue()
     if (crc32_check!=(u32)crc)
         return -1;
         
-    strncpy((char*)(temp_buffer+decompressed_size-10),(char*)secureValue,8);
+    memcpy((void*)(temp_buffer+decompressed_size-10),(void*)secureValue,8);
     
-    u8* final_buffer = (u8*)malloc(compressBound(ul_decompressed_size));
+    crc = crc32(0L, Z_NULL, 0);
+    ul_compressed_size = compressBound(ul_decompressed_size);
+    u8* final_buffer = (u8*)malloc(ul_compressed_size);
     if(is_compressed)
     {
-        compress((Bytef*)final_buffer,&ul_compressed_size,(Bytef*)temp_buffer,ul_decompressed_size);
+        res = compress2((Bytef*)final_buffer,&ul_compressed_size,(Bytef*)temp_buffer,ul_decompressed_size,9);
+        if(res) return res;
         crc = crc32(crc,final_buffer,ul_compressed_size);
     } else {
         crc = crc32(crc,temp_buffer,compressed_size);
-        strncpy((char*)final_buffer,(char*)temp_buffer,compressed_size);
+        memcpy((void*)final_buffer,(void*)temp_buffer,compressed_size);
     }
+    /*
+    for(i=0;i<8;i++)
+    {
+        printf("%02x ",temp_buffer[decompressed_size-10+i]);
+    }
+    putchar('\n');*/
     free(temp_buffer);
     
     for(i=0;i<4;i++)
+    {
         header_buffer[0x8+i] = (crc >> (8*(3-i))) & 0xff;
+        //printf("%02x ",header_buffer[0x8+i]);
+    }
+    //putchar('\n');
+    
     
     deleteFile((char*)POKERW_SVPATH,&saveGameArchive,&saveGameFsHandle);
     
