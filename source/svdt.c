@@ -69,9 +69,13 @@ int lsLine_cmp(lsLine* line1, lsLine* line2)
     if (!line2)
         return -1;
     int isDir_cmp = (line2->isDirectory) - (line1->isDirectory);
-    if(isDir_cmp)
+    if(isDir_cmp){
         return isDir_cmp;
-    return strcmp(line1->thisLine,line2->thisLine);
+	}else{
+		int r = strcasecmp(line1->thisLine,line2->thisLine);
+		if (r) return r;
+		return -strcmp(line1->thisLine,line2->thisLine);
+	}
 }
 
 void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
