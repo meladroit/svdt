@@ -106,19 +106,21 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
         default:
             break;
     }
-    
-    char* deletePath = (char*)malloc(strlen(dir->thisDir)+strlen(path)+1);
-    strcpy(deletePath,dir->thisDir);
-    strcat(deletePath,path);
-    if(canHasConsole)
-    {
-        debugOut("about to overwrite file");
-        printf(" deletePath %s",deletePath);
+    if (detectOverwrite(path,destDir)) {    
+        char* deletePath = (char*)malloc(strlen(dir->thisDir)+strlen(path)+1);
+        strcpy(deletePath,dir->thisDir);
+        strcat(deletePath,path);
+        if(canHasConsole)
+        {
+            debugOut("about to overwrite file");
+            printf(" deletePath %s",deletePath);
+        }
+        if (curArchive==&sdmcArchive)
+            deleteFile(deletePath,&saveGameArchive,&saveGameFsHandle);
+        if (curArchive==&saveGameArchive)
+            deleteFile(deletePath,&sdmcArchive,&sdmcFsHandle);
+        free(deletePath);
     }
-    if (curArchive==&sdmcArchive)
-        deleteFile(deletePath,&saveGameArchive,&saveGameFsHandle);
-    if (curArchive==&saveGameArchive)
-        deleteFile(deletePath,&sdmcArchive,&sdmcFsHandle);
     
     char origpath[MAX_PATH_LENGTH] = {0};
     char destpath[MAX_PATH_LENGTH] = {0};
