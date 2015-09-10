@@ -68,12 +68,12 @@ int lsLine_cmp(lsLine* line1, lsLine* line2)
         return 1;
     if (!line2)
         return -1;
-    int isDir_cmp = (line2->isDirectory) - (line1->isDirectory);
-    if(isDir_cmp){
-        return isDir_cmp;
-	}else{
-		int r = strcasecmp(line1->thisLine,line2->thisLine);
-		if (r) return r;
+    int cmp = (line2->isDirectory) - (line1->isDirectory);
+    if (cmp) {
+        return cmp;
+	} else {
+		cmp = strcasecmp(line1->thisLine,line2->thisLine);
+		if (cmp) return cmp;
 		return -strcmp(line1->thisLine,line2->thisLine);
 	}
 }
