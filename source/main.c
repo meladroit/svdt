@@ -19,7 +19,7 @@
 #define HELD_THRESHOLD 10
 
 int canHasConsole = 0;
-int alphabetSort = 0;
+int alphabetSort = 1;
 lsTitle* firstTitle = NULL;
 
 u8 mediatype = 2;
