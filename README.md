@@ -15,7 +15,9 @@ When svdt starts up, it checks for whether the target game is on a gamecard or t
 * If the target is a gamecard, svdt automatically fetches the game title (the short English title in exeFS:/icon).
 * If the target is a digital game, svdt asks you to pick the game title from a list of all titles on the device. This is because at present, svdt does not have an automatic way to fetch the title ID. Use left/right buttons on the D-pad to browse through the title list, and press A to select a title. (You can also press B to skip this step.)
 
-While the game title is unnecessary for actually accessing data, svdt uses it for naming backups of all save data. Emergency backups go to sd:/svdt/[title]/[timestamp], while interactive ones go to sd:/[current working directory]/[title]_[timestamp]).
+If the selected title uses anti-savegame restore, svdt has some built-in measures to automatically use the secure value currently in save data when restoring older save files. svdt will prompt you to enable this if it starts up successfully, but will automatically work against anti-savegame restore in emergency mode.
+
+While the game title is otherwise unnecessary for actually accessing data, svdt uses it for naming backups of all save data. Emergency backups go to sd:/svdt/[title]/[timestamp], while interactive ones go to sd:/[current working directory]/[title]_[timestamp]).
 
 ### Brief UI guide
 * There are two panes in view. The left pane lists files and directories in the target app's save data. The right pane does the same for the SD card. Both listings start at root.
@@ -29,7 +31,7 @@ While the game title is unnecessary for actually accessing data, svdt uses it fo
  * Press X to delete the selected file or directory (recursively). svdt will ask for confirmation by pressing X again.
  * Press Y to copy the selected file or directory (recursively) across. svdt will ask for confirmation if it sees that the file you are trying to copy may overwrite a file in the destination directory. *svdt does not check this at all when copying directories.*
  * If there are more files and directories in the folder than can fit on the screen, you actually can scroll up and down past the last on-screen item. There is no visual indicator for this, however.
-* Press SELECT to see a set of instructions on the lower screen. Normally, the screen is full of moderately useful debug output.
+* Press SELECT to see a set of instructions on the lower screen. Normally, the screen is full of moderately useful debug output. Pressing SELECT also switches how SD and save data listings are sorted (by date by default, by name if desired).
 * Press START to exit back to the homebrew launcher.
 
 ### Known issues
@@ -37,4 +39,4 @@ While the game title is unnecessary for actually accessing data, svdt uses it fo
 * The homebrew launcher may hang while trying to start svdt, on a blue or white or otherwise abstract screen. I swear it's not my fault.
 * The homebrew launcher doesn't always show the target app selection screen. svdt has no mechanism in place at the moment to check whether there is a target app, but this should be fairly straightforward to implement (check for target app name?). If svdt starts without a target, then the output is garbled slightly at first, but it functions for the most part as a SD data browser. There are better SD card browsers, so using svdt in this way is not recommended.
 * svdt does not handle running out of space gracefully. *This is because if the save data does run out of space, then trying to continue writing to save data (even after reinitialising FS handles and archives) may corrupt it.* For now, if svdt detects any problem at all with manipulating files, it just throws a fatal error and asks you to quit out. There may not really be a better option.
-* The code is a mess. There will eventually be more helpful comments.
+* The code is a mess, and I just need to comment it.
