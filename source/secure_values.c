@@ -298,9 +298,9 @@ Result getSecureValue2(const char* productCode)
     while (ret!=EOF)
     {
         ret = fscanf(config,"%s %s %08x ",productCodeBuffer,filenameBuffer,&offset);
-        printf("%s %s %08x\n",productCodeBuffer,filenameBuffer,offset);
         if (!strncmp(productCode,productCodeBuffer,9))
         {
+            printf("%s %s %08x\n",productCodeBuffer,filenameBuffer,offset);
             Result res = readBytesFromSaveFile(filenameBuffer,offset,secureValue,SECURE_VALUE_SIZE);
             if(res) return res;
             secureValueSet = 1;

@@ -19,6 +19,7 @@
 #define HELD_THRESHOLD 10
 
 int canHasConsole = 0;
+int alphabetSort = 0;
 lsTitle* firstTitle = NULL;
 
 u8 mediatype = 2;
@@ -37,7 +38,8 @@ enum state
     CONFIRM_OVERWRITE,
     SVDT_IS_KILL,
     SET_TARGET_TITLE,
-    CONFIRM_SAVE_ROOT
+    CONFIRM_SAVE_ROOT,
+    CONFIRM_SECURE_VALUE
 };
 enum state machine_state;
 enum state previous_state;
@@ -104,6 +106,19 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
         default:
             break;
     }
+    
+    char* deletePath = (char*)malloc(strlen(dir->thisDir)+strlen(path)+1);
+    strcpy(deletePath,dir->thisDir);
+    strcat(deletePath,path);
+    if(canHasConsole)
+    {
+        debugOut("about to overwrite file");
+        printf(" deletePath %s",deletePath);
+    }
+    if (curArchive==&sdmcArchive)
+        deleteFile(deletePath,&saveGameArchive,&saveGameFsHandle);
+    if (curArchive==&saveGameArchive)
+        deleteFile(deletePath,&sdmcArchive,&sdmcFsHandle);
     
     char origpath[MAX_PATH_LENGTH] = {0};
     char destpath[MAX_PATH_LENGTH] = {0};
@@ -533,6 +548,7 @@ int main()
             break;
         default:
             debugOut("successful startup, I guess. Huh.");
+            canHasConsole = 1;
             break;
     }
     if (mediatype!=2)
@@ -551,7 +567,7 @@ int main()
     
 	consoleSelect(&titleBar);
     textcolour(SALMON);
-    printf("svdt 0.3, meladroit/willidleaway\n");
+    printf("svdt 0.3a, meladroit/willidleaway\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);
@@ -687,7 +703,11 @@ int main()
                     for(i=0;i<8;i++)
                         printf("%02x ",secureValue[i]);
                     putchar('\n');
+                    wordwrap("Enable automatic secure value rewriting on restore? Press A to enable, B to disable.\n",BOTTOM_WIDTH);
+                    previous_state = machine_state;
+                    machine_state = CONFIRM_SECURE_VALUE;
                 }
+                continue;
             }
             if(hidKeysDown() & KEY_B)
             {
@@ -698,6 +718,31 @@ int main()
                 previous_state = machine_state;
                 machine_state = SELECT_SDMC;
                 clearTitleList();
+            }
+            gspWaitForVBlank();
+            // Flush and swap framebuffers
+            gfxFlushBuffers();
+            gfxSwapBuffers();
+            continue;
+        }
+        if(machine_state == CONFIRM_SECURE_VALUE)
+        {   
+            if(hidKeysDown() & KEY_A)
+            {
+                printInstructions();
+                printf("Target app:\n %s\n",titleTitle);
+                debugOut("Anti-anti savegame restore enabled.");
+                previous_state = machine_state;
+                machine_state = SELECT_SDMC;
+            }
+            if(hidKeysDown() & KEY_B)
+            {
+                whichSecureGame = SECURE_UNKNOWN;
+                printInstructions();
+                printf("Target app:\n %s\n",titleTitle);
+                debugOut("Anti-anti savegame restore disabled.");
+                previous_state = machine_state;
+                machine_state = SELECT_SDMC;
             }
             gspWaitForVBlank();
             // Flush and swap framebuffers
@@ -733,6 +778,7 @@ int main()
             {
                 previous_state = CONFIRM_SAVE_ROOT;
                 consoleSelect(&statusBar);
+                putchar('\n');
                 wordwrap("You are about to extract all target save data to the SD card. To extract into a folder in the current SD working directory, press Y. To extract into a folder in /svdt/, press A. Press B to cancel.\n",BOTTOM_WIDTH);
             }
             if(hidKeysDown() & KEY_B)
@@ -811,6 +857,10 @@ int main()
         if(hidKeysDown() & KEY_SELECT)
         {
             printInstructions();
+            debugOut("changing sort order");
+            alphabetSort = !alphabetSort;
+            cwd_needs_update = 1;
+            notccwd_needs_update = 1;
         }
         if(hidKeysDown() & KEY_X)
         {
@@ -872,10 +922,6 @@ int main()
             {
                 machine_state = previous_state;
                 previous_state = CONFIRM_OVERWRITE;
-                if (curArchive==&sdmcArchive)
-                    deleteFile(deletePath,&saveGameArchive,&saveGameFsHandle);
-                if (curArchive==&saveGameArchive)
-                    deleteFile(deletePath,&sdmcArchive,&sdmcFsHandle);
                     
                 copyFile(ccwd,overwritePath,overwriteSize,notccwd);
                 notccwd_needs_update = 1;

@@ -62,6 +62,18 @@ char* lsDirBasename(lsDir* dir)
     return ret;
 }
 
+int lsLine_cmp(lsLine* line1, lsLine* line2)
+{
+    if (!line1)
+        return 1;
+    if (!line2)
+        return -1;
+    int isDir_cmp = (line2->isDirectory) - (line1->isDirectory);
+    if(isDir_cmp)
+        return isDir_cmp;
+    return strcmp(line1->thisLine,line2->thisLine);
+}
+
 void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
 {
     if (!dir) return;
@@ -98,13 +110,33 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
             tempLine->isDirectory = entry.isDirectory;
             tempLine->fileSize = entry.fileSize;
             tempLine->nextLine = NULL;
-            if(dir->firstLine)
+            if (!alphabetSort)
             {
-                lastLine->nextLine = tempLine;
+                if(dir->firstLine)
+                {
+                    lastLine->nextLine = tempLine;
+                } else {
+                    dir->firstLine = tempLine;
+                }
+                lastLine = tempLine;
             } else {
-                dir->firstLine = tempLine;
+                if(dir->firstLine == NULL) {
+                    dir->firstLine = tempLine;
+                } else {
+                    lastLine = dir->firstLine;
+                    if(lsLine_cmp(tempLine,lastLine)<0) {
+                        tempLine->nextLine = lastLine;
+                        dir->firstLine = tempLine;
+                    } else {
+                        while(lsLine_cmp(lastLine->nextLine,tempLine)<0)
+                        {
+                            lastLine = lastLine->nextLine;
+                        }
+                        tempLine->nextLine = lastLine->nextLine;
+                        lastLine->nextLine = tempLine;
+                    }
+                }
             }
-            lastLine = tempLine;
             dir->dirEntryCount++;
         }
     }while (entriesRead);

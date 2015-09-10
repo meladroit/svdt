@@ -23,6 +23,7 @@ typedef struct lsTitle {
 } lsTitle;
 
 extern int canHasConsole;
+extern int alphabetSort;
 extern lsTitle* firstTitle;
 
 void freeDir(lsDir* dir);
