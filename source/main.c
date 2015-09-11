@@ -17,9 +17,11 @@
 #define RES_OUT_OF_SPACE_ESHOP 0xd8604664 // at least I think so
 
 #define HELD_THRESHOLD 10
-
+// I know, global variables, but I swear they're useful here
 int canHasConsole = 0;
-int alphabetSort = 1;
+int alphabetSort = 1; // 1 for sort by name, 0 for sort by filesystem load order (probably date)
+int calledFromCopyDir = 0; // incremented for every call of copyDir, decremented at end of call
+int dirOverwriteAll = 0; // 0 to keep prompting, 1 to always overwrite, -1 to always skip
 lsTitle* firstTitle = NULL;
 
 u8 mediatype = 2;
@@ -39,7 +41,8 @@ enum state
     SVDT_IS_KILL,
     SET_TARGET_TITLE,
     CONFIRM_SAVE_ROOT,
-    CONFIRM_SECURE_VALUE
+    CONFIRM_SECURE_VALUE,
+    EXIT_REQUESTED
 };
 enum state machine_state;
 enum state previous_state;
@@ -107,6 +110,50 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
             break;
     }
     if (detectOverwrite(path,destDir)) {    
+        int goGoGadgetOverwrite = 0;
+        if (dirOverwriteAll == -1) return;
+        if (!dirOverwriteAll)
+        {
+            debugOut("possible overwrite detected\npress SELECT to overwrite, B to skip");
+            if(calledFromCopyDir)
+            {
+                wordwrap("(hold down both shoulder buttons while choosing to apply for all other files in this directory)",BOTTOM_WIDTH);
+            }
+            previous_state = machine_state;
+            machine_state = CONFIRM_OVERWRITE;
+            while (aptMainLoop())
+            {
+                hidScanInput();
+                if(hidKeysDown() & KEY_START)
+                {
+                    machine_state = EXIT_REQUESTED;
+                    return;
+                }
+                if(hidKeysDown() & KEY_B)
+                {
+                    debugOut("overwrite cancelled");
+                    if(hidKeysHeld() & (KEY_L | KEY_R))
+                        dirOverwriteAll = -1;
+                    break;
+                }
+                if(hidKeysDown() & KEY_A)
+                {
+                    debugOut("overwrite confirmed");
+                    goGoGadgetOverwrite = 1;
+                    if(hidKeysHeld() & (KEY_L | KEY_R))
+                        dirOverwriteAll = 1;
+                    break;
+                }
+                gspWaitForVBlank();
+                // Flush and swap framebuffers
+                gfxFlushBuffers();
+                gfxSwapBuffers();
+            }
+            previous_state = CONFIRM_OVERWRITE;
+            machine_state = previous_state;
+        }
+        if (!goGoGadgetOverwrite)
+            return;
         char* deletePath = (char*)malloc(strlen(dir->thisDir)+strlen(path)+1);
         strcpy(deletePath,dir->thisDir);
         strcat(deletePath,path);
@@ -245,8 +292,10 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
         gotoSubDirectory(dir,path);
     //printf("currently %s\n",destDir->thisDir);
     //printf("destpath %s",destpath);
+    dirOverwriteAll = 0;
     scanDir(dir,curArchive,curFsHandle);
     lsLine* curLine = dir->firstLine;
+    calledFromCopyDir++;
     while (curLine && (machine_state!=SVDT_IS_KILL))
     {
         if (curLine->isDirectory)
@@ -256,9 +305,13 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
         else
         {
             copyFile(dir,curLine->thisLine,curLine->fileSize,destDir);
+            if(machine_state == EXIT_REQUESTED) return;
         }    
         curLine = curLine->nextLine;
     }
+    calledFromCopyDir--;
+    if (!calledFromCopyDir)
+        dirOverwriteAll = 0;
     if (path)
         gotoParentDirectory(dir);
     gotoParentDirectory(destDir);
@@ -465,10 +518,9 @@ int main()
     
     hidScanInput();
     
-    if ((hidKeysHeld() & KEY_L) || (hidKeysHeld() & KEY_R))
+    if (!(hidKeysHeld() & KEY_L))
     {
-        // super secret emergency save backup mode
-        // for games that won't give away services so easily, like ACNL
+        // always back up the data unless L is held down at startup
         machine_state = SELECT_SAVE;
         memset(destPath,0,MAX_PATH_LENGTH);
         gotoSubDirectory(&cwd_sdmc,"svdt");
@@ -543,7 +595,7 @@ int main()
             debugOut("emergency inject invoked w/o directory");        
             break;
         case 2:
-            debugOut("emergency dump to SD was invoked");
+            debugOut("standard dump to SD was invoked");
             break;
         case 3:
             debugOut("emergency savegame inject was invoked");
@@ -588,9 +640,7 @@ int main()
     gotoxy(0,0);
     printf(SDMC_CURSOR);
     int cursor_y = 0;
-    char overwritePath[MAX_PATH_LENGTH] = {0};
     char deletePath[MAX_PATH_LENGTH] = {0};
-    u64 overwriteSize = 0;
     lsDir* ccwd = &cwd_sdmc;
     lsDir* notccwd = &cwd_save;
     PrintConsole* curList = &sdmcList;
@@ -632,6 +682,7 @@ int main()
 	{
 		hidScanInput();
 		if(hidKeysDown() & KEY_START)break;
+		if(machine_state == EXIT_REQUESTED)break;
         if(machine_state == SET_TARGET_TITLE)
         {
             int titleTitle_update = 0;
@@ -856,15 +907,13 @@ int main()
                 }
             }
         }
-        if(hidKeysDown() & KEY_SELECT)
-        {
-            printInstructions();
-            debugOut("changing sort order");
-            alphabetSort = !alphabetSort;
-            cwd_needs_update = 1;
-            notccwd_needs_update = 1;
-        }
         if(hidKeysDown() & KEY_X)
+        {
+            previous_state = machine_state;
+            machine_state = CONFIRM_DELETE;
+            debugOut("press X again to confirm delete!");
+        }
+        if(hidKeysDown() & KEY_SELECT)
         {
             switch (machine_state)
             {
@@ -906,9 +955,11 @@ int main()
                     cwd_needs_update = 1;
                     break;
                 default:
-                    previous_state = machine_state;
-                    machine_state = CONFIRM_DELETE;
-                    debugOut("press X again to confirm delete!");
+                    printInstructions();
+                    debugOut("changing sort order");
+                    alphabetSort = !alphabetSort;
+                    cwd_needs_update = 1;
+                    notccwd_needs_update = 1;
             }
         } else {
             if (hidKeysDown() && (machine_state == CONFIRM_DELETE))
@@ -920,83 +971,57 @@ int main()
         }
         if((hidKeysDown() & KEY_Y)&&(previous_state!=CONFIRM_SAVE_ROOT))
         {
-            if (machine_state == CONFIRM_OVERWRITE)
+            debugOut("attempting to copy selection");
+            int i;
+            switch (cursor_y)
             {
-                machine_state = previous_state;
-                previous_state = CONFIRM_OVERWRITE;
-                    
-                copyFile(ccwd,overwritePath,overwriteSize,notccwd);
-                notccwd_needs_update = 1;
-            } else {
-                debugOut("attempting to copy selection");
-                int i;
-                switch (cursor_y)
-                {
-                    case 0:
-                        if (!strcmp("/",(const char*)ccwd->thisDir))
+                case 0:
+                    if (!strcmp("/",(const char*)ccwd->thisDir))
+                    {
+                        debugOut("dumping root");
+                        memset(destPath,0,MAX_PATH_LENGTH);
+                        temps = time(NULL);
+                        strftime(tempStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
+                        if (machine_state == SELECT_SAVE)
                         {
-                            debugOut("dumping root");
-                            memset(destPath,0,MAX_PATH_LENGTH);
-                            temps = time(NULL);
-                            strftime(tempStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
-                            if (machine_state == SELECT_SAVE)
-                            {
-                                previous_state = machine_state;
-                                machine_state = CONFIRM_SAVE_ROOT;
-                                continue;
-                            } else {
-                                debugOut("dumping SD root to save data is disabled at present");
-                                continue;
-                            }
-                            /*strcat(destPath,tempStr);
-                            printf("using destPath %s",destPath);
-                            copyDir(ccwd,NULL,notccwd,destPath);*/
-                        }
-                        else
-                        {
-                            debugOut("dumping subdirectory");
-                            printf("using basename %s",lsDirBasename(ccwd));
-                            copyDir(ccwd,NULL,notccwd,lsDirBasename(ccwd));
-                        }
-                        notccwd_needs_update = 1;
-                        break;
-                    case 1:
-                        if (!ccwd->lsOffset)
-                            break;
-                    default: ;
-                        lsLine* selection = ccwd->firstLine;
-                        for (i=0;i<cursor_y+ccwd->lsOffset-2;i++)
-                        {
-                            selection = selection->nextLine;
-                        }
-                        debugOut(selection->thisLine);
-                        printf(" isDir: %d",(int)selection->isDirectory);
-                        if(selection->isDirectory)
-                        {
-                            copyDir(ccwd,selection->thisLine,notccwd,NULL);
-                            notccwd_needs_update = 1;
+                            previous_state = machine_state;
+                            machine_state = CONFIRM_SAVE_ROOT;
+                            continue;
                         } else {
-                            if (detectOverwrite(selection->thisLine,notccwd))
-                            {
-                                debugOut("possible overwrite detected\npress Y again to confirm!");
-                                previous_state = machine_state;
-                                machine_state = CONFIRM_OVERWRITE;
-                                strncpy(overwritePath,selection->thisLine,MAX_PATH_LENGTH);
-                                overwriteSize = selection->fileSize;
-                            } else {
-                                copyFile(ccwd,selection->thisLine,selection->fileSize,notccwd);
-                                notccwd_needs_update = 1;
-                            }
+                            debugOut("dumping SD root to save data is disabled at present");
+                            continue;
                         }
+                        /*strcat(destPath,tempStr);
+                        printf("using destPath %s",destPath);
+                        copyDir(ccwd,NULL,notccwd,destPath);*/
+                    }
+                    else
+                    {
+                        debugOut("dumping subdirectory");
+                        printf("using basename %s",lsDirBasename(ccwd));
+                        copyDir(ccwd,NULL,notccwd,lsDirBasename(ccwd));
+                    }
+                    notccwd_needs_update = 1;
+                    break;
+                case 1:
+                    if (!ccwd->lsOffset)
                         break;
-                }
-            }
-        } else {
-            if (hidKeysDown() && (machine_state == CONFIRM_OVERWRITE))
-            {
-                machine_state = previous_state;
-                previous_state = CONFIRM_OVERWRITE;
-                debugOut("overwrite unconfirmed");
+                default: ;
+                    lsLine* selection = ccwd->firstLine;
+                    for (i=0;i<cursor_y+ccwd->lsOffset-2;i++)
+                    {
+                        selection = selection->nextLine;
+                    }
+                    debugOut(selection->thisLine);
+                    printf(" isDir: %d",(int)selection->isDirectory);
+                    if(selection->isDirectory)
+                    {
+                        copyDir(ccwd,selection->thisLine,notccwd,NULL);
+                    } else {
+                        copyFile(ccwd,selection->thisLine,selection->fileSize,notccwd);
+                    }
+                    notccwd_needs_update = 1;
+                    break;
             }
         }
         if(hidKeysDown() & (KEY_L | KEY_DLEFT))
