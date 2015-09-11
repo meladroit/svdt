@@ -162,23 +162,20 @@ void secureGameFromFilesystem()
 {
     u64 size = 0;
     secureValueSet = 0;
-    // first, some sure guesses
+    // custom specifier absolutely takes precedence over these guesses
+    if(!checkCustomSecureGame())
+    {
+        whichSecureGame = SECURE_EMERGENCY;
+        return;
+    }
+    // first, we're most sure about ACNL
     if(!getSaveGameFileSize("/garden.dat",&size))
     {
         whichSecureGame = SECURE_ACNL;
         return;
     }
-    if(!getSaveGameFileSize(POKERW_SVPATH,&size))
-    {
-        // would like to check for cAVIAR4\x00 identifier (and >100 files in /00slot/?)
-        char charviar[8] = {0};
-        Result ret = readBytesFromSaveFile(POKERW_SVPATH,0x0,(u8*)charviar,8);
-        if(!ret && !strcmp("cAVIAR4\x00",charviar))
-        {
-            whichSecureGame = SECURE_POKERW;
-            return;
-        }
-    }
+    // from here, the guesses are much less safe
+    // (there's a reason we override these if we can get to the target title prompt)
     if(!getSaveGameFileSize("/account_data.bin",&size))
     {
         if(!getSaveGameFileSize("/system_data.bin",&size))
@@ -187,12 +184,20 @@ void secureGameFromFilesystem()
             return;
         }
     }
-    // from here, the guesses are a little trickier
-    // custom specifier absolutely takes precedence over these guesses
-    if(!checkCustomSecureGame())
+    if(!getSaveGameFileSize(POKERW_SVPATH,&size))
     {
-        whichSecureGame = SECURE_EMERGENCY;
-        return;
+        // would like to check for cAVIAR4\x00 identifier (and >100 files in /00slot/?)
+        // this check still has a collision with Rumble Blast
+        // but if the rest of the header is compatible, and the secure value, compression, and checksum are compatible, the handling would be the same
+        // and if the rest of the header is not compatible, the handling should fail out while trying to get properties from the header and/or verify the CRC32 checksum
+        // (notice the area in between ...)
+        char charviar[8] = {0};
+        Result ret = readBytesFromSaveFile(POKERW_SVPATH,0x0,(u8*)charviar,8);
+        if(!ret && !strcmp("cAVIAR4\x00",charviar))
+        {
+            whichSecureGame = SECURE_POKERW;
+            return;
+        }
     }
     if(!getSaveGameFileSize("/main",&size))
     {
