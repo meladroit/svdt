@@ -1008,6 +1008,7 @@ int main()
                 previous_state = CONFIRM_DELETE;
                 printTarget();
                 debugOut("Delete unconfirmed.");
+                hidScanInput();
             }
         }
         if(hidKeysDown() & KEY_X)
