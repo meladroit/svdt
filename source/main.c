@@ -10,7 +10,7 @@
 #include "filesystem.h"
 #include "secure_values.h"
 
-#define MAX_LS_LINES HEIGHT-4
+#define MAX_LS_LINES HEIGHT-5
 #define CURSOR_WIDTH 3
 #define LIST_WIDTH (TOP_WIDTH/2-CURSOR_WIDTH)
 #define RES_OUT_OF_SPACE_CARD 0xc86044cd  // probably
@@ -21,7 +21,8 @@
 int canHasConsole = 0;
 int alphabetSort = 1; // 1 for sort by name, 0 for sort by filesystem load order (probably date)
 int calledFromCopyDir = 0; // incremented for every call of copyDir, decremented at end of call
-int dirOverwriteAll = 0; // 0 to keep prompting, 1 to always overwrite, -1 to always skip
+int dirOverwriteAll = 1; // 0 to keep prompting, 1 to always overwrite, -1 to always skip
+// not to worry ... this is set to 0 past emergency mode
 lsTitle* firstTitle = NULL;
 
 u8 mediatype = 2;
@@ -48,7 +49,9 @@ enum state machine_state;
 enum state previous_state;
 
 PrintConsole titleBar, sdmcList, saveList, sdmcCursor, saveCursor;
-PrintConsole statusBar;//, instructions;
+PrintConsole statusBar, notifyBar;
+void printAlert();
+void printTarget();
 
 void debugOut(char* garbled)
 {
@@ -72,6 +75,7 @@ int detectOverwrite(char* path, lsDir* destDir)
     while (curLine)
     {
         if (!(curLine->isDirectory))
+            if(canHasConsole)printf("looking at %s\n",curLine->thisLine);
             if (!strcmp(curLine->thisLine,path))
             {
                 if (canHasConsole)
@@ -121,6 +125,7 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
             }
             previous_state = machine_state;
             machine_state = CONFIRM_OVERWRITE;
+            printAlert();
             while (aptMainLoop())
             {
                 hidScanInput();
@@ -149,11 +154,16 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
                 gfxFlushBuffers();
                 gfxSwapBuffers();
             }
-            previous_state = CONFIRM_OVERWRITE;
             machine_state = previous_state;
-        }
+            previous_state = CONFIRM_OVERWRITE;
+        } else { goGoGadgetOverwrite = 1; }
+        if(canHasConsole)
+            printTarget();
         if (!goGoGadgetOverwrite)
+        {
+            hidScanInput();
             return;
+        }
         char* deletePath = (char*)malloc(strlen(dir->thisDir)+strlen(path)+1);
         strcpy(deletePath,dir->thisDir);
         strcat(deletePath,path);
@@ -472,6 +482,29 @@ void printInstructions()
     wordwrap("> Press START to stop while you're ahead.\n",BOTTOM_WIDTH);
 }
 
+void printAlert()
+{
+    consoleSelect(&notifyBar);
+    consoleClear();
+    textcolour(RED);
+    printf("Action requires confirmation. See lower screen.");
+}
+
+char titleTitle[0x40];
+int titleTitle_set = 0;
+
+void printTarget()
+{
+    consoleSelect(&notifyBar);
+    consoleClear();
+    gotoxy(0,0);
+    if(titleTitle_set)
+    {
+        textcolour(WHITE);
+        printf("title: %.42s",titleTitle);
+    }
+}
+
 int checkInjectDirectory(char* path, lsDir* dir)
 {   
     lsLine* curLine = dir->firstLine;
@@ -488,12 +521,12 @@ int checkInjectDirectory(char* path, lsDir* dir)
 int main()
 {
 	filesystemInit();
+    if (!doesFileNotExist("/3ds/svdt/no_alpha_sort",&sdmcFsHandle,sdmcArchive))
+        alphabetSort = 0;
     FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,"/svdt"));
     
     u64 tid;
-    int titleTitle_set = 0;
     int titleTitles_available;
-    char titleTitle[0x40];
     char destPath[MAX_PATH_LENGTH];
     char tempStr[16] = {0};
     time_t temps = time(NULL);
@@ -518,9 +551,15 @@ int main()
     
     hidScanInput();
     
-    if (!(hidKeysHeld() & KEY_L))
+    if ((hidKeysHeld() & KEY_L) != doesFileNotExist("/3ds/svdt/disable_auto_backups",&sdmcFsHandle,sdmcArchive))
     {
-        // always back up the data unless L is held down at startup
+        // always back up the data if one and only one of two conditions is met:
+        //      no disable_auto_backups file (cannot be empty)
+        //      L is held down at startup
+        //  so! if disable_auto_backups is present but L is held down, we execute a backup
+        //      if disable_auto_backups is absent, and L is held down, no backup is made
+        //      if disable_auto_backups is present but L is left open, no backup is made
+        //      if disable_auto_backups is absent, and L is left open, we execute a backup
         machine_state = SELECT_SAVE;
         memset(destPath,0,MAX_PATH_LENGTH);
         gotoSubDirectory(&cwd_sdmc,"svdt");
@@ -567,6 +606,8 @@ int main()
     gfxInitDefault();
 	gfxSet3D(false);
     amInit();
+    
+    dirOverwriteAll = 0;
 
 	consoleInit(GFX_TOP, &titleBar);
 	consoleInit(GFX_TOP, &sdmcList);
@@ -574,20 +615,20 @@ int main()
 	consoleInit(GFX_TOP, &sdmcCursor);
 	consoleInit(GFX_TOP, &saveCursor);
 	consoleInit(GFX_BOTTOM, &statusBar);
-	//consoleInit(GFX_BOTTOM, &instructions);
+	consoleInit(GFX_TOP, &notifyBar);
 
     consoleSetWindow(&titleBar,0,0,TOP_WIDTH,3);
-    consoleSetWindow(&saveCursor,0,3,3,HEIGHT-3);
-    consoleSetWindow(&saveList,CURSOR_WIDTH,3,LIST_WIDTH,HEIGHT-3);
-    consoleSetWindow(&sdmcCursor,TOP_WIDTH/2,3,CURSOR_WIDTH,HEIGHT-3);
-    consoleSetWindow(&sdmcList,TOP_WIDTH/2+CURSOR_WIDTH,3,LIST_WIDTH,HEIGHT-3);
+    consoleSetWindow(&saveCursor,0,3,3,MAX_LS_LINES+1);
+    consoleSetWindow(&saveList,CURSOR_WIDTH,3,LIST_WIDTH,MAX_LS_LINES+1);
+    consoleSetWindow(&sdmcCursor,TOP_WIDTH/2,3,CURSOR_WIDTH,MAX_LS_LINES+1);
+    consoleSetWindow(&sdmcList,TOP_WIDTH/2+CURSOR_WIDTH,3,LIST_WIDTH,MAX_LS_LINES+1);
     consoleSetWindow(&statusBar,0,0,BOTTOM_WIDTH,HEIGHT);//8);
-    //consoleSetWindow(&instructions,0,8,BOTTOM_WIDTH,HEIGHT-2);
+    consoleSetWindow(&notifyBar,0,HEIGHT-1,TOP_WIDTH,1);
     
     if (machine_state != SET_TARGET_TITLE)
     {
         printInstructions();
-        printf("Target app:\n %s\n",titleTitle);
+        printTarget();
     }
     switch (canHasConsole)
     {
@@ -621,7 +662,7 @@ int main()
     
 	consoleSelect(&titleBar);
     textcolour(SALMON);
-    printf("svdt 0.3a, meladroit/willidleaway\n");
+    printf("svdt 0.10, meladroit/willidleaway\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);
@@ -721,7 +762,7 @@ int main()
             {
                 titleTitle_set = 1;
                 printInstructions();
-                printf("Target app:\n %s\n",titleTitle);
+                printf("Target app: %s\n",titleTitle);
                 previous_state = machine_state;
                 machine_state = SELECT_SDMC;
                 if (canHasConsole == 2)
@@ -836,6 +877,7 @@ int main()
             }
             if(hidKeysDown() & KEY_B)
             {
+                printTarget();
                 debugOut("Save data extraction cancelled.");
                 machine_state = SELECT_SAVE;
                 previous_state = CONFIRM_SAVE_ROOT;
@@ -876,6 +918,7 @@ int main()
             }
             if(goGoGadgetCopy)
             {
+                printTarget();
                 debugOut("Save data extraction complete.");
                 previous_state = CONFIRM_SAVE_ROOT;
                 notccwd_needs_update = 1;
@@ -906,12 +949,6 @@ int main()
                     notccwd_needs_update = 1;
                 }
             }
-        }
-        if(hidKeysDown() & KEY_X)
-        {
-            previous_state = machine_state;
-            machine_state = CONFIRM_DELETE;
-            debugOut("press X again to confirm delete!");
         }
         if(hidKeysDown() & KEY_SELECT)
         {
@@ -952,6 +989,7 @@ int main()
                     }
                     machine_state = previous_state;
                     previous_state = CONFIRM_DELETE;
+                    printTarget();
                     cwd_needs_update = 1;
                     break;
                 default:
@@ -966,8 +1004,16 @@ int main()
             {
                 machine_state = previous_state;
                 previous_state = CONFIRM_DELETE;
+                printTarget();
                 debugOut("delete unconfirmed");
             }
+        }
+        if(hidKeysDown() & KEY_X)
+        {
+            previous_state = machine_state;
+            machine_state = CONFIRM_DELETE;
+            debugOut("press SELECT to confirm delete!");
+            printAlert();
         }
         if((hidKeysDown() & KEY_Y)&&(previous_state!=CONFIRM_SAVE_ROOT))
         {
@@ -986,6 +1032,7 @@ int main()
                         {
                             previous_state = machine_state;
                             machine_state = CONFIRM_SAVE_ROOT;
+                            printAlert();
                             continue;
                         } else {
                             debugOut("dumping SD root to save data is disabled at present");
