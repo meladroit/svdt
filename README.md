@@ -5,17 +5,15 @@ svdt is a save explorer and manager for the 3DS. It is heavily based on smealum'
 ### Installation and startup
 Put svdt.3dsx, svdt.smdh, and svdt.xml in sd:/3ds/svdt/. Run from the homebrew launcher. Make sure you can select a target app, since svdt will want to access its save data.
 
-For games that don't handle gfxInitDefault() well for some reason (Animal Crossing: New Leaf is a prominent example), svdt has an emergency mode. Since the homebrew launcher doesn't care about the L/R shoulder buttons, these are ideal for binding to functions that need to be executed before the application gets to gfxInitDefault().
-* svdt automatically backs up all save data into a time-stamped folder in the SD card (ex. sd:/svdt/Cubic Ninja/20151021_060942/). Hold down the left shoulder button while starting svdt to skip this.
+Since some games don't handle gfxInitDefault() well for some reason (Animal Crossing: New Leaf is a prominent example), svdt has some emergency operations available for all games. Since the homebrew launcher doesn't care about the L/R shoulder buttons, these are ideal for binding to functions that need to be executed before the application gets to gfxInitDefault().
+* svdt automatically backs up all save data at startup into a time-stamped folder in the SD card (ex. sd:/svdt/Cubic Ninja/20151021_060942/). Hold down the left shoulder button while starting svdt to skip this.
 * Hold down the right shoulder button while starting svdt to dump the contents of sd:/svdt_inject/ into the target save data. If no directory named svdt_inject exists in the SD root, nothing is attempted.
-
-These functions are available for all games, not just misbehaving ones.
 
 When svdt starts up, it checks for whether the target game is on a gamecard or the SD card.
 * If the target is a gamecard, svdt automatically fetches the game title (the short English title in exeFS:/icon).
 * If the target is a digital game, svdt asks you to pick the game title from a list of all titles on the device. This is because at present, svdt does not have an automatic way to fetch the title ID. Use left/right buttons on the D-pad to browse through the title list, and press A to select a title. (You can also press B to skip this step.)
 
-If the selected title uses anti-savegame restore, svdt has some built-in measures to automatically use the secure value currently in save data when restoring older save files. svdt will prompt you to enable this if it starts up successfully, but will automatically work against anti-savegame restore in emergency mode.
+If the selected title uses anti-savegame restore, svdt has some built-in measures to automatically use the secure value currently in save data when restoring older save files. svdt will prompt you to enable this if it starts up successfully, but will attempt to automatically work against anti-savegame restore in emergency mode.
 
 While the game title is otherwise unnecessary for actually accessing data, svdt uses it for naming backups of all save data. Emergency backups always go to sd:/svdt/[title]/[timestamp], while interactive ones can also go to sd:/[current working directory]/[title]_[timestamp].
 
