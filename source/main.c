@@ -66,27 +66,27 @@ int detectOverwrite(char* path, lsDir* destDir)
     if (!destDir || !path) return -1;
     if (canHasConsole)
     {
-        debugOut("checking for overwrite risk");
-        printf("checking against %s\n",path);
-        printf(" destDir: %s",destDir->thisDir);
+        debugOut("Checking for overwrite risk.");
+        //printf("checking against %s\n",path);
+        //printf(" destDir: %s",destDir->thisDir);
     }
     lsLine* curLine = destDir->firstLine;
-    if (canHasConsole)
-        debugOut("starting check");
+    //if (canHasConsole)
+    //    debugOut("starting check");
     while (curLine)
     {
         if (!(curLine->isDirectory))
-            if(canHasConsole)printf("looking at %s\n",curLine->thisLine);
+            //if(canHasConsole)printf("looking at %s\n",curLine->thisLine);
             if (!strcmp(curLine->thisLine,path))
             {
                 if (canHasConsole)
-                    printf("found overwrite: %s\n",curLine->thisLine);
+                    printf("Found overwrite for: %s\n",curLine->thisLine);
                 return 1;
             }
         curLine = curLine->nextLine;
     }
     if (canHasConsole)
-        printf("no overwrite\n");
+        printf("No overwrite risk.\n");
     return 0;
 }
 
@@ -119,10 +119,10 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
         if (dirOverwriteAll == -1) return;
         if (!dirOverwriteAll)
         {
-            debugOut("possible overwrite detected\npress SELECT to overwrite, B to skip");
+            debugOut("Possible overwrite detected.\n    Press SELECT to overwrite, B to skip.");
             if(calledFromCopyDir)
             {
-                wordwrap("(hold down both shoulder buttons while choosing to apply for all other files in this directory)",BOTTOM_WIDTH);
+                wordwrap("(Hold down both shoulder buttons while choosing to apply for all other files in this directory.)",BOTTOM_WIDTH);
             }
             previous_state = machine_state;
             machine_state = CONFIRM_OVERWRITE;
@@ -137,14 +137,14 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
                 }
                 if(hidKeysDown() & KEY_B)
                 {
-                    debugOut("overwrite cancelled");
+                    debugOut("Overwrite cancelled.");
                     if(hidKeysHeld() & (KEY_L | KEY_R))
                         dirOverwriteAll = -1;
                     break;
                 }
                 if(hidKeysDown() & KEY_SELECT)
                 {
-                    debugOut("overwrite confirmed");
+                    debugOut("Overwrite confirmed!");
                     goGoGadgetOverwrite = 1;
                     if(hidKeysHeld() & (KEY_L | KEY_R))
                         dirOverwriteAll = 1;
@@ -170,8 +170,8 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
         strcat(deletePath,path);
         if(canHasConsole)
         {
-            debugOut("about to overwrite file");
-            printf(" deletePath %s",deletePath);
+            debugOut("Overwriting file.");
+            printf("[deletePath %s]",deletePath);
         }
         if (curArchive==&sdmcArchive)
             deleteFile(deletePath,&saveGameArchive,&saveGameFsHandle);
@@ -191,23 +191,23 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
     
     if (canHasConsole)
     {
-        debugOut("reading original file ...");
-        printf("original path %s\n",origpath);
+        debugOut("Reading original file ...");
+        printf("[original path %s]\n",origpath);
     }
     Result res = loadFile(origpath,data,curArchive,curFsHandle,size);
     if(res)
     {
         if (canHasConsole)
         {
-            debugOut("error reading file");
-            printf("result code %08x",(unsigned int)res);
+            debugOut("Error reading file.");
+            printf("[result code %08x]",(unsigned int)res);
         }
         return;
     }
     if (canHasConsole)
     {
-        debugOut("writing new file ...");
-        printf("destination path %s\n",destpath);
+        debugOut("Writing new file ...");
+        printf("[destination path %s]\n",destpath);
     }
     res = writeFile(destpath,data,(u32)size,destArchive,destFsHandle);
     free(data);
@@ -215,10 +215,10 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
     {
         if (canHasConsole)
         {
-            debugOut("error writing file");
-            printf("result code %08x\n",(unsigned int)res);
+            debugOut("Error writing file.");
+            printf("[result code %08x]\n",(unsigned int)res);
             if(res==RES_OUT_OF_SPACE_CARD || res==RES_OUT_OF_SPACE_ESHOP)
-                printf("(you may be running out of save space!)\n");
+                printf("(You may be running out of save space!)\n");
         }
         machine_state = SVDT_IS_KILL;
         return;
@@ -226,17 +226,17 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
     if((isSecureFile(destpath))&&(whichSecureGame!=SECURE_UNKNOWN))
     {
         if (canHasConsole)
-            debugOut("rewriting secure value from value loaded at startup");
+            debugOut("Rewriting secure value from value loaded at startup.");
         res = writeSecureValue();
     }
     if(res)
     {
         if (canHasConsole)
-            debugOut("error rewriting secure value");
-        printf(" result code %08x\n",(unsigned int)res);
+            debugOut("Error rewriting secure value.");
+        printf("[result code %08x]\n",(unsigned int)res);
     }
     if (canHasConsole)
-        debugOut("success!");
+        debugOut("Finished!");
 }
 
 void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
@@ -252,11 +252,11 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
     strncpy(origpath,dir->thisDir,MAX_PATH_LENGTH);
     if (path)
         strcat(origpath,path);
-    if (canHasConsole)
-        debugOut("constructing paths:");
+    //if (canHasConsole)
+    //    debugOut("constructing paths:");
     strncpy(destpath,destDir->thisDir,MAX_PATH_LENGTH);
-    if (canHasConsole)
-        printf("origpath %s\n",origpath);
+    //if (canHasConsole)
+    //    printf("origpath %s\n",origpath);
     switch(machine_state)
     {
         case SELECT_SAVE:
@@ -274,8 +274,8 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
         default:
             break;
     }
-    if (canHasConsole)
-        debugOut("got handles");
+    //if (canHasConsole)
+    //    debugOut("got handles");
     //debugOut("manipulating destDir->thisDir");
     //printf("currently %s\n",destDir->thisDir);
     if (destName)
@@ -294,8 +294,8 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
     scanDir(destDir,destArchive,destFsHandle);
     if(destArchive==&saveGameArchive)
     {
-        if (canHasConsole)
-            printf("\ncalling ControlArchive\n");
+        //if (canHasConsole)
+        //    printf("\ncalling ControlArchive\n");
         FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
         // this is absolutely necessary
         // otherwise any changes we make don't stick!
@@ -502,8 +502,10 @@ void printTarget()
     gotoxy(0,0);
     if(titleTitle_set)
     {
+        textcolour(TEAL);
+        printf("Title: ");
         textcolour(WHITE);
-        printf("title: %.42s",titleTitle);
+        printf("%.42s",titleTitle);
     }
 }
 
@@ -635,26 +637,26 @@ int main()
     switch (canHasConsole)
     {
         case -1:
-            debugOut("emergency inject invoked w/o directory");        
+            debugOut("Emergency inject invoked w/o svdt_inject directory.");
             break;
         case 2:
-            debugOut("standard dump to SD was invoked");
+            debugOut("Standard dump to SD was invoked.");
             break;
         case 3:
-            debugOut("emergency savegame inject was invoked");
+            debugOut("Emergency savegame inject was invoked.");
             break;
         default:
-            debugOut("successful startup, I guess. Huh.");
+            debugOut("Successful startup, I guess. Huh.");
             canHasConsole = 1;
             break;
     }
     if (mediatype!=2)
     {
-        printf("secure game inferred from filesystem:\n ");
+        printf("Secure game inferred from filesystem:\n ");
         printSecureGame();
         if(secureValueSet)
         {
-            debugOut("secure value set");
+            debugOut("Secure value set.");
             int i;
             for(i=0;i<8;i++)
                 printf("%02x ",secureValue[i]);
@@ -764,12 +766,12 @@ int main()
             {
                 titleTitle_set = 1;
                 printInstructions();
-                printf("Target app: %s\n",titleTitle);
+                printTarget();
                 previous_state = machine_state;
                 machine_state = SELECT_SDMC;
                 if (canHasConsole == 2)
                 {
-                    debugOut("trying to rename dump directory");
+                    debugOut("Trying to rename dump directory");
                     char tempPath[MAX_PATH_LENGTH] = {0};
                     memset(destPath,0,MAX_PATH_LENGTH);
                     strcat(destPath,"/svdt/");
@@ -782,8 +784,8 @@ int main()
                     Result res = FSUSER_RenameDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,tempPath),sdmcArchive,FS_makePath(PATH_CHAR,destPath));
                     if (res)
                     {
-                        printf("failed with result code %08x",(unsigned int)res);
-                    } else { printf("success!"); }
+                        printf("Failed with result code %08x",(unsigned int)res);
+                    } else { printf("Success!"); }
                 }
                 scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
                 clearTitleList();
@@ -794,7 +796,7 @@ int main()
                 getSecureValue();
                 if(secureValueSet)
                 {
-                    debugOut("secure value set");
+                    debugOut("Secure value set:");
                     int i;
                     for(i=0;i<8;i++)
                         printf("%02x ",secureValue[i]);
@@ -826,7 +828,6 @@ int main()
             if(hidKeysDown() & KEY_A)
             {
                 printInstructions();
-                printf("Target app:\n %s\n",titleTitle);
                 debugOut("Anti-anti savegame restore enabled.");
                 previous_state = machine_state;
                 machine_state = SELECT_SDMC;
@@ -835,7 +836,6 @@ int main()
             {
                 whichSecureGame = SECURE_UNKNOWN;
                 printInstructions();
-                printf("Target app:\n %s\n",titleTitle);
                 debugOut("Anti-anti savegame restore disabled.");
                 previous_state = machine_state;
                 machine_state = SELECT_SDMC;
@@ -912,7 +912,7 @@ int main()
                     strcat(destPath,"_");
                 }
                 strcat(destPath,tempStr);
-                printf("using destPath %s",destPath);
+                //printf("using destPath %s",destPath);
                 machine_state = SELECT_SAVE;
                 copyDir(ccwd,NULL,notccwd,destPath);
                 scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
@@ -957,7 +957,7 @@ int main()
             switch (machine_state)
             {
                 case CONFIRM_DELETE:
-                    debugOut("attempting to delete selection");
+                    debugOut("Attempting to delete selection.");
                     int i;
                     switch (cursor_y)
                     {
@@ -974,7 +974,7 @@ int main()
                                 selection = selection->nextLine;
                             }
                             debugOut(selection->thisLine);
-                            printf(" isDir: %d",(int)selection->isDirectory);
+                            printf("[isDirectory: %d]",(int)selection->isDirectory);
                             strcat(deletePath,selection->thisLine);
                             if(selection->isDirectory)
                             {
@@ -996,7 +996,7 @@ int main()
                     break;
                 default:
                     printInstructions();
-                    debugOut("changing sort order");
+                    debugOut("Changing sort order.");
                     alphabetSort = !alphabetSort;
                     cwd_needs_update = 1;
                     notccwd_needs_update = 1;
@@ -1007,26 +1007,26 @@ int main()
                 machine_state = previous_state;
                 previous_state = CONFIRM_DELETE;
                 printTarget();
-                debugOut("delete unconfirmed");
+                debugOut("Delete unconfirmed.");
             }
         }
         if(hidKeysDown() & KEY_X)
         {
             previous_state = machine_state;
             machine_state = CONFIRM_DELETE;
-            debugOut("press SELECT to confirm delete!");
+            debugOut("Press SELECT to confirm delete!");
             printAlert();
         }
         if((hidKeysDown() & KEY_Y)&&(previous_state!=CONFIRM_SAVE_ROOT))
         {
-            debugOut("attempting to copy selection");
+            debugOut("Attempting to copy selection.");
             int i;
             switch (cursor_y)
             {
                 case 0:
                     if (!strcmp("/",(const char*)ccwd->thisDir))
                     {
-                        debugOut("dumping root");
+                        debugOut("Copying root contents.");
                         memset(destPath,0,MAX_PATH_LENGTH);
                         temps = time(NULL);
                         strftime(tempStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
@@ -1037,7 +1037,7 @@ int main()
                             printAlert();
                             continue;
                         } else {
-                            debugOut("dumping SD root to save data is disabled at present");
+                            debugOut("Copying SD root to save data is disabled at present.");
                             continue;
                         }
                         /*strcat(destPath,tempStr);
@@ -1046,8 +1046,8 @@ int main()
                     }
                     else
                     {
-                        debugOut("dumping subdirectory");
-                        printf("using basename %s",lsDirBasename(ccwd));
+                        debugOut("Copying subdirectory.");
+                        //printf("using basename %s",lsDirBasename(ccwd));
                         copyDir(ccwd,NULL,notccwd,lsDirBasename(ccwd));
                     }
                     notccwd_needs_update = 1;
@@ -1062,7 +1062,7 @@ int main()
                         selection = selection->nextLine;
                     }
                     debugOut(selection->thisLine);
-                    printf(" isDir: %d",(int)selection->isDirectory);
+                    printf("[isDirectory: %d]",(int)selection->isDirectory);
                     if(selection->isDirectory)
                     {
                         copyDir(ccwd,selection->thisLine,notccwd,NULL);
@@ -1132,7 +1132,7 @@ int main()
             if (strcmp("/",(const char*)ccwd->thisDir))
             {
                 gotoParentDirectory(ccwd);
-                debugOut("navigating to parent directory");
+                debugOut("Navigating to parent directory.");
                 cwd_needs_update = 1;
             }
         }
@@ -1141,14 +1141,14 @@ int main()
             switch (cursor_y)
             {
                 case 0:
-                    debugOut("refreshing current directory");
+                    debugOut("Refreshing current directory.");
                     cwd_needs_update = 1;
                     break;
                 case 1:
                     if (strcmp("/",(const char*)ccwd->thisDir))
                     {
                         gotoParentDirectory(ccwd);
-                        debugOut("navigating to parent directory");
+                        debugOut("Navigating to parent directory.");
                         cwd_needs_update = 1;
                     }
                     break;
@@ -1160,7 +1160,7 @@ int main()
                         selection = selection->nextLine;
                     }
                     debugOut(selection->thisLine);
-                    printf(" isDir: %d",(int)selection->isDirectory);
+                    printf("[isDirectory: %d]",(int)selection->isDirectory);
                     if (selection->isDirectory)
                     {
                         cwd_needs_update = 1;
@@ -1171,7 +1171,7 @@ int main()
                         //temp_ccwd = (lsDir*)malloc(sizeof(lsDir));
                         //memset(temp_ccwd,0,sizeof(lsDir));
                         gotoSubDirectory(ccwd,selection->thisLine);
-                        debugOut("navigating to subdirectory");
+                        debugOut("Navigating to subdirectory.");
                     }
                     if ((whichSecureGame!=SECURE_UNKNOWN)&&(machine_state==SELECT_SAVE))
                     {
@@ -1179,7 +1179,7 @@ int main()
                         memset(destPath,0,strlen(ccwd->thisDir)+strlen(selection->thisLine)+1);
                         strcat(destPath,ccwd->thisDir);
                         strcat(destPath,selection->thisLine);
-                        printf("\n isSecureFile: %d",isSecureFile(destPath));
+                        printf("\n[isSecureFile: %d]",isSecureFile(destPath));
                         free(destPath);
                     }
                     break;
@@ -1191,8 +1191,8 @@ int main()
         {
             freeDir(ccwd);
             scanDir(ccwd,curArchive,curFsHandle);
-            debugOut("scanned current directory");
-            printf("%s\n dirEntryCount %d",ccwd->thisDir,ccwd->dirEntryCount);
+            debugOut("Scanned current directory.");
+            printf("[path: %s]\n[dirEntryCount: %d]",ccwd->thisDir,ccwd->dirEntryCount);
             //debugOut("and now some formalities");
             consoleSelect(curList);
             consoleClear();
@@ -1217,8 +1217,8 @@ int main()
                     break;
             }
             
-            debugOut("scanned not-current directory");
-            printf("%s\n dirEntryCount %d",notccwd->thisDir,notccwd->dirEntryCount);
+            debugOut("Scanned not-current directory.");
+            printf("[path: %s]\n[dirEntryCount: %d]",notccwd->thisDir,notccwd->dirEntryCount);
             //debugOut("and now some formalities");
             printDir(notccwd);
             enum state temp_state = previous_state;
