@@ -125,19 +125,19 @@ void secureGameFromProductCode(const char* productCode)
         char productCodeBuffer[9] = {0};
         char out1[MAX_PATH_LENGTH] = {0};
         unsigned int out2 = 0;
-        printf("\nasr.dat opened\n");
+        //printf("\nasr.dat opened\n");
         while (ret!=EOF)
         {
             ret = fscanf(config,"%s %s %08x ",productCodeBuffer,out1,&out2);
             if (!strncmp(productCode,productCodeBuffer,9))
             {
-                printf("found match, so closing file\n");
+                //printf("found match, so closing file\n");
                 strcpy(configProductCode,productCode);
                 fclose(config);
                 whichSecureGame = SECURE_CONFIG; return;
             }
         }
-        printf("reached EOF without match, apparently\n");
+        //printf("reached EOF without match, apparently\n");
         fclose(config);
     }
     // however, if asr.dat is absent, then we have info to fall back on ...
@@ -294,7 +294,7 @@ Result getSecureValue2(const char* productCode)
         return getPokeRumbleSecureValue();
     if(checkSecureConfig())
         return -1;
-    printf("\nopening asr.dat\n");
+    //printf("\nopening asr.dat\n");
     FILE* config = fopen(secureConfigBasename,"rb");
     int ret = 0;
     char productCodeBuffer[9];
@@ -305,7 +305,7 @@ Result getSecureValue2(const char* productCode)
         ret = fscanf(config,"%s %s %08x ",productCodeBuffer,filenameBuffer,&offset);
         if (!strncmp(productCode,productCodeBuffer,9))
         {
-            printf("%s %s %08x\n",productCodeBuffer,filenameBuffer,offset);
+            //printf("%s %s %08x\n",productCodeBuffer,filenameBuffer,offset);
             Result res = readBytesFromSaveFile(filenameBuffer,offset,secureValue,SECURE_VALUE_SIZE);
             if(res) return res;
             secureValueSet = 1;

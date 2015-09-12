@@ -119,7 +119,7 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
         if (dirOverwriteAll == -1) return;
         if (!dirOverwriteAll)
         {
-            debugOut("Possible overwrite detected.\n    Press SELECT to overwrite, B to skip.");
+            debugOut("Possible overwrite detected.\nPress SELECT to overwrite, B to skip.");
             if(calledFromCopyDir)
             {
                 wordwrap("(Hold down both shoulder buttons while choosing to apply for all other files in this directory.)",BOTTOM_WIDTH);
