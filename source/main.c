@@ -67,7 +67,8 @@ int detectOverwrite(char* path, lsDir* destDir)
     if (canHasConsole)
     {
         debugOut("checking for overwrite risk");
-        printf("checking against %s",path);
+        printf("checking against %s\n",path);
+        printf(" destDir: %s",destDir->thisDir);
     }
     lsLine* curLine = destDir->firstLine;
     if (canHasConsole)
@@ -141,7 +142,7 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
                         dirOverwriteAll = -1;
                     break;
                 }
-                if(hidKeysDown() & KEY_A)
+                if(hidKeysDown() & KEY_SELECT)
                 {
                     debugOut("overwrite confirmed");
                     goGoGadgetOverwrite = 1;
@@ -290,6 +291,7 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
             gotoSubDirectory(destDir,path);
         }
     }
+    scanDir(destDir,destArchive,destFsHandle);
     if(destArchive==&saveGameArchive)
     {
         if (canHasConsole)
@@ -302,7 +304,6 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
         gotoSubDirectory(dir,path);
     //printf("currently %s\n",destDir->thisDir);
     //printf("destpath %s",destpath);
-    dirOverwriteAll = 0;
     scanDir(dir,curArchive,curFsHandle);
     lsLine* curLine = dir->firstLine;
     calledFromCopyDir++;
@@ -325,6 +326,7 @@ void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
     if (path)
         gotoParentDirectory(dir);
     gotoParentDirectory(destDir);
+    scanDir(destDir,destArchive,destFsHandle);
     scanDir(dir,curArchive,curFsHandle);
 }
 
@@ -486,7 +488,7 @@ void printAlert()
 {
     consoleSelect(&notifyBar);
     consoleClear();
-    textcolour(RED);
+    textcolour(SALMON);
     printf("Action requires confirmation. See lower screen.");
 }
 
@@ -661,7 +663,7 @@ int main()
     }
     
 	consoleSelect(&titleBar);
-    textcolour(SALMON);
+    textcolour(TEAL);
     printf("svdt 0.10, meladroit/willidleaway\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
