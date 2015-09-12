@@ -6,7 +6,7 @@ svdt is a save explorer and manager for the 3DS. It is heavily based on smealum'
 Put svdt.3dsx, svdt.smdh, and svdt.xml in sd:/3ds/svdt/. Run from the homebrew launcher. Make sure you can select a target app, since svdt will want to access its save data.
 
 For games that don't handle gfxInitDefault() well for some reason (Animal Crossing: New Leaf is a prominent example), svdt has an emergency mode. Since the homebrew launcher doesn't care about the L/R shoulder buttons, these are ideal for binding to functions that need to be executed before the application gets to gfxInitDefault().
-* Hold down the left shoulder button while starting svdt to dump all save data into a time-stamped folder in the SD card (ex. sd:/svdt/Cubic Ninja/20151021_060942/).
+* svdt automatically backs up all save data into a time-stamped folder in the SD card (ex. sd:/svdt/Cubic Ninja/20151021_060942/). Hold down the left shoulder button while starting svdt to skip this.
 * Hold down the right shoulder button while starting svdt to dump the contents of sd:/svdt_inject/ into the target save data. If no directory named svdt_inject exists in the SD root, nothing is attempted.
 
 These functions are available for all games, not just misbehaving ones.
@@ -24,12 +24,12 @@ While the game title is otherwise unnecessary for actually accessing data, svdt 
 * A cursor to the left of the active listing indicates the current selected entry. Use up/down on the D-pad to move the cursor up and down the listing. Use L/R D-pad or shoulder buttons to switch which listing is selected (SD versus save data).
 * The top listing of each pane is the current working directory path, either in full or truncated. (The full path is always shown in the debug output when the directory is first selected.)
  * Selecting this line with the cursor and pressing A refreshes the whole listing.
- * Selecting this line with the cursor and pressing Y dumps the contents of the working directory onto a subdirectory in the other working directory (save to SD, or vice versa). If / is dumped, the subdirectory is named with a timestamp. If a non-root directory is dumped, the subdirectory just takes on the name of the directory. *This does not check for overwrites. Proceed with caution.*
+ * Selecting this line with the cursor and pressing Y dumps the contents of the working directory onto a subdirectory in the other working directory (save to SD, or vice versa). If / is dumped (only possible from save to SD), the subdirectory is named with a timestamp. If a non-root directory is dumped, the subdirectory just takes on the name of the directory.
 * The second listing of each pane is a dummy entry for the parent directory. Selecting this with A or pressing B at any time navigates to the parent directory.
 * All further listings are files and directories in the working directory.
  * Press A to navigate inside a subdirectory.
- * Press X to delete the selected file or directory (recursively). svdt will ask for confirmation by pressing X again.
- * Press Y to copy the selected file or directory (recursively) across. svdt will ask for confirmation if it sees that the file you are trying to copy may overwrite a file in the destination directory. *svdt does not check this at all when copying directories.*
+ * Press X to delete the selected file or directory (recursively). svdt will ask for confirmation by pressing SELECT.
+ * Press Y to copy the selected file or directory (recursively) across. svdt will ask for confirmation if it sees that the file you are trying to copy may overwrite a file in the destination directory.
  * If there are more files and directories in the folder than can fit on the screen, you actually can scroll up and down past the last on-screen item. There is no visual indicator for this, however.
 * Press SELECT to see a set of instructions on the lower screen. Normally, the screen is full of moderately useful debug output. Pressing SELECT also switches how SD and save data listings are sorted (by date by default, by name if desired).
 * Press START to exit back to the homebrew launcher.
