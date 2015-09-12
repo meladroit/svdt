@@ -17,7 +17,7 @@ When svdt starts up, it checks for whether the target game is on a gamecard or t
 
 If the selected title uses anti-savegame restore, svdt has some built-in measures to automatically use the secure value currently in save data when restoring older save files. svdt will prompt you to enable this if it starts up successfully, but will automatically work against anti-savegame restore in emergency mode.
 
-While the game title is otherwise unnecessary for actually accessing data, svdt uses it for naming backups of all save data. Emergency backups go to sd:/svdt/[title]/[timestamp], while interactive ones go to sd:/[current working directory]/[title]_[timestamp]).
+While the game title is otherwise unnecessary for actually accessing data, svdt uses it for naming backups of all save data. Emergency backups always go to sd:/svdt/[title]/[timestamp], while interactive ones can also go to sd:/[current working directory]/[title]_[timestamp].
 
 ### Brief UI guide
 * There are two panes in view. The left pane lists files and directories in the target app's save data. The right pane does the same for the SD card. Both listings start at root.
