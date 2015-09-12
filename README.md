@@ -19,6 +19,7 @@ While the game title is otherwise unnecessary for actually accessing data, svdt 
 
 ### Brief UI guide
 * There are two panes in view. The left pane lists files and directories in the target app's save data. The right pane does the same for the SD card. Both listings start at root.
+* A line along the bottom of the upper screen usually shows the target title. If an action selected by the user needs confirmation, this is indicated instead in this line.
 * A cursor to the left of the active listing indicates the current selected entry. Use up/down on the D-pad to move the cursor up and down the listing. Use L/R D-pad or shoulder buttons to switch which listing is selected (SD versus save data).
 * The top listing of each pane is the current working directory path, either in full or truncated. (The full path is always shown in the debug output when the directory is first selected.)
  * Selecting this line with the cursor and pressing A refreshes the whole listing.
