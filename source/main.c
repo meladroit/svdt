@@ -530,6 +530,7 @@ int main()
     FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,"/svdt"));
     
     u64 tid;
+    u64 tid2 = 0;
     int titleTitles_available;
     char destPath[MAX_PATH_LENGTH];
     char tempStr[16] = {0};
@@ -543,6 +544,23 @@ int main()
         getTitleTitle(0x0,2,titleTitle);
         titleTitle_set = 1;
     } else {
+    	//Fetch title from /svdt/tid.bin
+	FILE * pFile;
+	long lSize;
+	size_t result;
+	pFile = fopen ( "/svdt/tid.bin" , "rb" );
+	if (pFile!=NULL) {
+		fseek (pFile , 0 , SEEK_END);
+		lSize = ftell (pFile);
+		rewind (pFile);
+		result = fread (&tid2,1,sizeof(tid2),pFile);
+		if (result == lSize) {
+			fclose (pFile);
+			//Make sure we can't load this again without going trough HBL
+			remove("/svdt/tid.bin");
+		}
+	}
+	fclose (pFile);
         secureGameFromFilesystem();
         getSecureValue();
     }
@@ -705,8 +723,15 @@ int main()
         gotoxy(0,10);
         int i;
         for (i=0;i<BOTTOM_WIDTH;i++) { printf(" "); }
-        nthTitleInList(titleTitle_set,mediatype,titleTitle,&tid);
-        AM_GetTitleProductCode(mediatype,tid,productCodeBuffer);
+	if (tid2 != 0){
+		for (i=0;i<titleTitles_available;i++){
+			nthTitleInList(i,mediatype,titleTitle,&tid);
+			if (tid2 == tid) break;
+		}
+	}else{
+		nthTitleInList(titleTitle_set,mediatype,titleTitle,&tid);
+	}
+	AM_GetTitleProductCode(mediatype,tid,productCodeBuffer);
         strncpy(productCode,productCodeBuffer,9);
         gotoxy(1,10);
         printf("<");
