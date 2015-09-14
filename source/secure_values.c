@@ -26,7 +26,7 @@ char configProductCode[9] = {0};
 
 const char* const POKERW_SVPATH = "/00slot00/00main.dat";
 const char* const customSecurePath = "/svdt_sv_data";
-const char* const secureConfigPath = "/3ds/svdt/asr.dat";
+const char* const secureConfigPath = "asr.dat";
 const char* const secureConfigBasename = "asr.dat";
 
 int isSecureFile(const char* destPath)
