@@ -525,7 +525,7 @@ int checkInjectDirectory(char* path, lsDir* dir)
 int main()
 {
 	filesystemInit();
-    if (!doesFileNotExist("/3ds/svdt/no_alpha_sort",&sdmcFsHandle,sdmcArchive))
+    if (!doesFileNotExist("no_alpha_sort",&sdmcFsHandle,sdmcArchive))
         alphabetSort = 0;
     FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,"/svdt"));
     
@@ -573,7 +573,7 @@ int main()
     
     hidScanInput();
     
-    if ((hidKeysHeld() & KEY_L) != doesFileNotExist("/3ds/svdt/disable_auto_backups",&sdmcFsHandle,sdmcArchive))
+    if ((hidKeysHeld() & KEY_L) != doesFileNotExist("disable_auto_backups",&sdmcFsHandle,sdmcArchive))
     {
         // always back up the data if one and only one of two conditions is met:
         //      no disable_auto_backups file (cannot be empty)
