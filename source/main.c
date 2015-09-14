@@ -724,13 +724,20 @@ int main()
         int i;
         for (i=0;i<BOTTOM_WIDTH;i++) { printf(" "); }
 	if (tid2 != 0){
-		for (i=0;i<titleTitles_available;i++){
-			nthTitleInList(i,mediatype,titleTitle,&tid);
-			if (tid2 == tid) break;
+		lsTitle* currentTitle = firstTitle;
+		int i = 0;
+		while(currentTitle != NULL){
+			if (currentTitle->thisTitle == tid2){
+				titleTitle_set = i;
+				getTitleTitle(tid2, mediatype, titleTitle);
+				break;
+			}
+			currentTitle = currentTitle->nextTitle;
+			i++;
 		}
-	}else{
-		nthTitleInList(titleTitle_set,mediatype,titleTitle,&tid);
 	}
+	if (!titleTitle_set)
+		nthTitleInList(titleTitle_set,mediatype,titleTitle,&tid);
 	AM_GetTitleProductCode(mediatype,tid,productCodeBuffer);
         strncpy(productCode,productCodeBuffer,9);
         gotoxy(1,10);
