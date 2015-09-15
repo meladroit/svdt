@@ -104,7 +104,7 @@ Result checkCustomSecureGame()
 Result checkSecureConfig()
 {
     //return doesFileNotExist(secureConfigPath,&sdmcFsHandle,sdmcArchive);
-    return file_exist(secureConfigPath);
+    return !file_exist(secureConfigPath);
 }
 
 void secureGameFromProductCode(const char* productCode)
