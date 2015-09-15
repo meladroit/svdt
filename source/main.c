@@ -687,7 +687,7 @@ int main()
     
 	consoleSelect(&titleBar);
     textcolour(TEAL);
-    printf("svdt 0.10, meladroit/willidleaway\n");
+    printf("svdt 0.10.1, meladroit/willidleaway/suloku\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);

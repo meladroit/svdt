@@ -78,7 +78,7 @@ int isSecureFile2(const char* destPath, const char* productCode)
 {
     if (!strncmp(productCode,pokeRumbleWorldCode,9))
         return (!strcmp(destPath,POKERW_SVPATH));
-    if(checkSecureConfig())
+    if(!checkSecureConfig())
         return -1;
     if(!secureValueSet)
         return -1;
@@ -98,13 +98,14 @@ int isSecureFile2(const char* destPath, const char* productCode)
 
 Result checkCustomSecureGame()
 {
-    return doesFileNotExist(customSecurePath,&sdmcFsHandle,sdmcArchive);
+    //return doesFileNotExist(customSecurePath,&sdmcFsHandle,sdmcArchive);
+    return file_exist(customSecurePath);
 }
 
 Result checkSecureConfig()
 {
     //return doesFileNotExist(secureConfigPath,&sdmcFsHandle,sdmcArchive);
-    return !file_exist(secureConfigPath);
+    return file_exist(secureConfigPath);
 }
 
 void secureGameFromProductCode(const char* productCode)
@@ -118,7 +119,7 @@ void secureGameFromProductCode(const char* productCode)
         return;
     }
     // ideally we actually have asr.dat in /3ds/svdt
-    if(!checkSecureConfig())
+    if(checkSecureConfig())
     {
         // and ideally we actually have the product code in there ...
         FILE* config = fopen(secureConfigBasename,"rb");
@@ -151,7 +152,7 @@ void secureGameFromProductCode(const char* productCode)
         }
     }
     // custom specifier does not take precedence over having the actual product code
-    if(!checkCustomSecureGame())
+    if(checkCustomSecureGame())
     {
         whichSecureGame = SECURE_EMERGENCY;
         return;
@@ -164,7 +165,7 @@ void secureGameFromFilesystem()
     u64 size = 0;
     secureValueSet = 0;
     // custom specifier absolutely takes precedence over these guesses
-    if(!checkCustomSecureGame())
+    if(checkCustomSecureGame())
     {
         whichSecureGame = SECURE_EMERGENCY;
         return;
@@ -293,7 +294,7 @@ Result getSecureValue2(const char* productCode)
 {
     if (!strncmp(productCode,pokeRumbleWorldCode,9))
         return getPokeRumbleSecureValue();
-    if(checkSecureConfig())
+    if(!checkSecureConfig())
         return -1;
     //printf("\nopening asr.dat\n");
     FILE* config = fopen(secureConfigBasename,"rb");
