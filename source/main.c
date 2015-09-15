@@ -525,8 +525,10 @@ int checkInjectDirectory(char* path, lsDir* dir)
 int main()
 {
 	filesystemInit();
-    if (!doesFileNotExist("no_alpha_sort",&sdmcFsHandle,sdmcArchive))
+    //if (!doesFileNotExist("/3ds/svdt/no_alpha_sort",&sdmcFsHandle,sdmcArchive))
+    if (file_exist("no_alpha_sort"))
         alphabetSort = 0;
+
     FSUSER_CreateDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,"/svdt"));
     
     u64 tid;
@@ -544,23 +546,23 @@ int main()
         getTitleTitle(0x0,2,titleTitle);
         titleTitle_set = 1;
     } else {
-    	//Fetch title from /svdt/tid.bin
-	FILE * pFile;
-	long lSize;
-	size_t result;
-	pFile = fopen ( "/svdt/tid.bin" , "rb" );
-	if (pFile!=NULL) {
-		fseek (pFile , 0 , SEEK_END);
-		lSize = ftell (pFile);
-		rewind (pFile);
-		result = fread (&tid2,1,sizeof(tid2),pFile);
-		if (result == lSize) {
-			fclose (pFile);
-			//Make sure we can't load this again without going trough HBL
-			remove("/svdt/tid.bin");
-		}
-	}
-	fclose (pFile);
+        //Fetch title from /svdt/tid.bin
+        FILE * pFile;
+        long lSize;
+        size_t result;
+        pFile = fopen ( "/svdt/tid.bin" , "rb" );
+        if (pFile!=NULL) {
+            fseek (pFile , 0 , SEEK_END);
+            lSize = ftell (pFile);
+            rewind (pFile);
+            result = fread (&tid2,1,sizeof(tid2),pFile);
+            if (result == lSize) {
+                fclose (pFile);
+                //Make sure we can't load this again without going trough HBL
+                remove("/svdt/tid.bin");
+            }
+	    }
+	    fclose (pFile);
         secureGameFromFilesystem();
         getSecureValue();
     }
@@ -573,7 +575,8 @@ int main()
     
     hidScanInput();
     
-    if ((hidKeysHeld() & KEY_L) != doesFileNotExist("disable_auto_backups",&sdmcFsHandle,sdmcArchive))
+    //if ((hidKeysHeld() & KEY_L) != doesFileNotExist("/3ds/svdt/disable_auto_backups",&sdmcFsHandle,sdmcArchive))
+	if ((hidKeysHeld() & KEY_L) == file_exist("disable_auto_backups"))
     {
         // always back up the data if one and only one of two conditions is met:
         //      no disable_auto_backups file (cannot be empty)
@@ -723,22 +726,23 @@ int main()
         gotoxy(0,10);
         int i;
         for (i=0;i<BOTTOM_WIDTH;i++) { printf(" "); }
-	if (tid2 != 0){
-		lsTitle* currentTitle = firstTitle;
-		int i = 0;
-		while(currentTitle != NULL){
-			if (currentTitle->thisTitle == tid2){
-				titleTitle_set = i;
-				getTitleTitle(tid2, mediatype, titleTitle);
-				break;
-			}
-			currentTitle = currentTitle->nextTitle;
-			i++;
-		}
-	}
-	if (!titleTitle_set)
-		nthTitleInList(titleTitle_set,mediatype,titleTitle,&tid);
-	AM_GetTitleProductCode(mediatype,tid,productCodeBuffer);
+        if (tid2 != 0){
+            lsTitle* currentTitle = firstTitle;
+            int i = 0;
+            while(currentTitle != NULL){
+                if (currentTitle->thisTitle == tid2){
+                    titleTitle_set = i;
+                    getTitleTitle(tid2, mediatype, titleTitle);
+                    tid = tid2;
+                    break;
+                }
+                currentTitle = currentTitle->nextTitle;
+                i++;
+            }
+        }
+        if (!titleTitle_set)
+            nthTitleInList(titleTitle_set,mediatype,titleTitle,&tid);
+        AM_GetTitleProductCode(mediatype,tid,productCodeBuffer);
         strncpy(productCode,productCodeBuffer,9);
         gotoxy(1,10);
         printf("<");
@@ -747,6 +751,10 @@ int main()
         gotoxy((BOTTOM_WIDTH-strlen(titleTitle))/2,10);
         textcolour(NEONGREEN);
         printf(titleTitle);
+        gotoxy(0,29);
+        textcolour(WHITE);		
+        printf(productCode);
+        printf(" - %llx", tid);
         gotoxy(0,12);
         textcolour(SALMON);
         wordwrap("Target app is not on gamecard. Fetching target app titles automatically is not implemented for NAND/SD apps. Use left/right on D-pad with the A button to select the correct target app name. Press B to skip.",BOTTOM_WIDTH);
@@ -793,6 +801,9 @@ int main()
                 textcolour(WHITE);
                 AM_GetTitleProductCode(mediatype,tid,productCodeBuffer);
                 strncpy(productCode,productCodeBuffer,9);
+                gotoxy(0,29);
+                printf(productCode);
+                printf(" - %llx", tid);
             }
             if(hidKeysDown() & KEY_A)
             {

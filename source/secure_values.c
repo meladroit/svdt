@@ -15,7 +15,7 @@ u8 secureValue[SECURE_VALUE_SIZE] = {0};
 secureGame whichSecureGame = SECURE_UNKNOWN;
 
 const u32 const secureOffsets[PRECONF_GAMES] = {ACNL_OFFSET, SSB_OFFSET, POKETORU_OFFSET, POKEXY_OFFSET, POKEXY_OFFSET, POKEORAS_OFFSET, POKEORAS_OFFSET};
-const char const secureFilenames[PRECONF_GAMES][MAX_PATH_LENGTH] = {"/garden.dat", "/account_data.bin", "/savedata.bin", "/main", "/main", "/main", "/main"};
+const char const secureFilenames[PRECONF_GAMES][MAX_PATH_LENGTH] = {"/garden.dat", "/save_data/account_data.bin", "/save_data/savedata.bin", "/main", "/main", "/main", "/main"};
 const char const secureProductCodes[PRECONF_GAMES][16] = {"CTR-P-EGD",
     "CTR-P-NXC", "CTR-N-KRX",
     "CTR-P-EKJ", "CTR-P-EK2",
@@ -103,7 +103,8 @@ Result checkCustomSecureGame()
 
 Result checkSecureConfig()
 {
-    return doesFileNotExist(secureConfigPath,&sdmcFsHandle,sdmcArchive);
+    //return doesFileNotExist(secureConfigPath,&sdmcFsHandle,sdmcArchive);
+    return file_exist(secureConfigPath);
 }
 
 void secureGameFromProductCode(const char* productCode)
@@ -176,9 +177,9 @@ void secureGameFromFilesystem()
     }
     // from here, the guesses are much less safe
     // (there's a reason we override these if we can get to the target title prompt)
-    if(!getSaveGameFileSize("/account_data.bin",&size))
+    if(!getSaveGameFileSize("/save_data/account_data.bin",&size))
     {
-        if(!getSaveGameFileSize("/system_data.bin",&size))
+        if(!getSaveGameFileSize("/save_data/system_data.bin",&size))
         {
             whichSecureGame = SECURE_SSB;
             return;
