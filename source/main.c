@@ -754,7 +754,7 @@ int main()
         gotoxy(0,29);
         textcolour(WHITE);		
         printf(productCode);
-        printf(" - %llx", tid);
+        printf(" - %016llX", tid);
         gotoxy(0,12);
         textcolour(SALMON);
         wordwrap("Target app is not on gamecard. Fetching target app titles automatically is not implemented for NAND/SD apps. Use left/right on D-pad with the A button to select the correct target app name. Press B to skip.",BOTTOM_WIDTH);
@@ -803,7 +803,7 @@ int main()
                 strncpy(productCode,productCodeBuffer,9);
                 gotoxy(0,29);
                 printf(productCode);
-                printf(" - %llx", tid);
+                printf(" - %016llX", tid);
             }
             if(hidKeysDown() & KEY_A)
             {
