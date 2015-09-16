@@ -201,6 +201,7 @@ void secureGameFromFilesystem()
             return;
         }
     }
+    /* ORAS demo makes this one tricky, I'm afraid
     if(!getSaveGameFileSize("/main",&size))
     {
         if (size < POKEORAS_OFFSET)
@@ -209,7 +210,7 @@ void secureGameFromFilesystem()
             whichSecureGame = SECURE_POKEOR; // ditto with OR/AS
             
         return;
-    }
+    } */
     // and finally we just give up before even guessing whether savedata.bin belongs to Shuffle
     whichSecureGame = SECURE_UNKNOWN;
     return;
