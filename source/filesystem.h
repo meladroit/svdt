@@ -17,4 +17,5 @@ Result readBytesFromSaveFile(const char* filename, u64 offset, u8* buffer, u32 s
 Result writeBytesToSaveFile(const char* filename, u64 offset, u8* buffer, u32 size);
 Result getSaveGameFileSize(const char* filename, u64* size);
 Result doesFileNotExist(const char* filename, Handle* fsHandle, FS_archive archive);
+int file_exist (const char *filename);
 #endif

@@ -1,6 +1,8 @@
 CTR-P-EGD /garden.dat 00000000
-CTR-P-NXC /account_data.bin 00000010
-CTR-P-NXC /system_data.bin 00000010
+CTR-P-NXC /save_data/account_data.bin 00000010
+CTR-P-NXC /save_data/system_data.bin 00000010
+CTR-T-AXC /save_data/account_data.bin 00000010
+CTR-T-AXC /save_data/system_data.bin 00000010
 CTR-P-EKJ /main 00065400
 CTR-P-EK2 /main 00065400
 CTR-P-ECL /main 00075e00

@@ -58,7 +58,7 @@ LIBS	:= -lctru -lm -lz
 # list of directories containing libraries, this must be the top level containing
 # include and lib
 #---------------------------------------------------------------------------------
-LIBDIRS	:= $(DEVKITPRO)/ctrulib/libctru $(DEVKITPRO)/portlibs/armv6k
+LIBDIRS	:= $(DEVKITPRO)/ctrulib/libctru $(DEVKITPRO)/portlibs/armv6k $(CTRULIB)
 
 
 #---------------------------------------------------------------------------------

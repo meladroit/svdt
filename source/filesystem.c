@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <3ds.h>
 
@@ -284,4 +285,26 @@ Result doesFileNotExist(const char* filename, Handle* fsHandle, FS_archive archi
         return ret;
     else
         return -1;
+}
+
+int file_exist(const char * filename)
+{
+	FILE * pFile;
+	long lSize;
+	char * buffer;
+	size_t result;
+
+	pFile = fopen ( filename , "rb" );
+	if (pFile==NULL) return 0;
+	fseek (pFile , 0 , SEEK_END);
+	lSize = ftell (pFile);
+	rewind (pFile);
+	buffer = (char*) malloc (sizeof(char)*lSize);
+	if (buffer == NULL) return 0;
+	result = fread (buffer,1,lSize,pFile);
+	if (result != lSize) return 0;
+	fclose (pFile);
+	free (buffer);
+	if (lSize > 0) return 1;
+    return 0;
 }
