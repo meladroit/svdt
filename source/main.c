@@ -61,6 +61,30 @@ void debugOut(char* garbled)
     printf("%s\n",garbled);
 }
 
+void debugOutPrompt(char* garbled)
+{
+    consoleSelect(&statusBar);
+    printf("\n");//consoleClear();
+    textcolour(YELLOW);
+    printf("%s\n",garbled);
+}
+
+void debugOutSuccess(char* garbled)
+{
+    consoleSelect(&statusBar);
+    printf("\n");//consoleClear();
+    textcolour(CYAN);
+    printf("%s\n",garbled);
+}
+
+void debugOutCancel(char* garbled)
+{
+    consoleSelect(&statusBar);
+    printf("\n");//consoleClear();
+    textcolour(RED);
+    printf("%s\n",garbled);
+}
+
 int detectOverwrite(char* path, lsDir* destDir)
 {   
     if (!destDir || !path) return -1;
@@ -119,9 +143,11 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
         if (dirOverwriteAll == -1) return;
         if (!dirOverwriteAll)
         {
-            debugOut("Possible overwrite detected.\nPress SELECT to overwrite, B to skip.");
+            debugOutPrompt("Possible overwrite detected.\n\t[SELECT] Overwrite\n\t[B] Skip");
             if(calledFromCopyDir)
             {
+                printf("\t[L+R] apply to all files\n");
+                textcolour(BROWN);
                 wordwrap("(Hold down both shoulder buttons while choosing to apply for all other files in this directory.)",BOTTOM_WIDTH);
             }
             previous_state = machine_state;
@@ -137,14 +163,14 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
                 }
                 if(hidKeysDown() & KEY_B)
                 {
-                    debugOut("Overwrite cancelled.");
+                    debugOutCancel("Overwrite cancelled.");
                     if(hidKeysHeld() & (KEY_L | KEY_R))
                         dirOverwriteAll = -1;
                     break;
                 }
                 if(hidKeysDown() & KEY_SELECT)
                 {
-                    debugOut("Overwrite confirmed!");
+                    debugOutSuccess("Overwrite confirmed!");
                     goGoGadgetOverwrite = 1;
                     if(hidKeysHeld() & (KEY_L | KEY_R))
                         dirOverwriteAll = 1;
@@ -199,7 +225,7 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
     {
         if (canHasConsole)
         {
-            debugOut("Error reading file.");
+            debugOutCancel("! Error reading file.");
             printf("[result code %08x]",(unsigned int)res);
         }
         return;
@@ -215,7 +241,7 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
     {
         if (canHasConsole)
         {
-            debugOut("Error writing file.");
+            debugOutCancel("! Error writing file.");
             printf("[result code %08x]\n",(unsigned int)res);
             if(res==RES_OUT_OF_SPACE_CARD || res==RES_OUT_OF_SPACE_ESHOP)
                 printf("(You may be running out of save space!)\n");
@@ -232,11 +258,11 @@ void copyFile(lsDir* dir, char* path, u64 size, lsDir* destDir)
     if(res)
     {
         if (canHasConsole)
-            debugOut("Error rewriting secure value.");
+            debugOutCancel("! Error rewriting secure value.");
         printf("[result code %08x]\n",(unsigned int)res);
     }
     if (canHasConsole)
-        debugOut("Finished!");
+        debugOutSuccess("Finished!");
 }
 
 void copyDir(lsDir* dir, char* path, lsDir* destDir, char* destName)
@@ -476,12 +502,15 @@ void printInstructions()
     consoleClear();
     textcolour(WHITE);
     wordwrap("svdt is tdvs, reversed and without vowels. Use it to transfer files between your SD card and your save data. (Directories marked in purple.) If you don't see any save data, restart until you can select a target app.\n",BOTTOM_WIDTH);
-    wordwrap("> Press L/R to point at save/SD data, and up/down to point at a specific file or folder.\n",BOTTOM_WIDTH);
-    wordwrap("> Press X to delete file or folder.\n",BOTTOM_WIDTH);
-    wordwrap("> Press A to navigate inside a folder. Press B to return to the parent folder, if there is one.\n",BOTTOM_WIDTH);
-    wordwrap("> Press Y to copy selected file/folder to the working directory of the other data. Use the topmost listing to dump working directory.\n",BOTTOM_WIDTH);
-    wordwrap("> Press SELECT to reprint these instructions at any time.\n",BOTTOM_WIDTH);
-    wordwrap("> Press START to stop while you're ahead.\n",BOTTOM_WIDTH);
+    printf("\n> [L/R] or [left/right] to change\n        between save/SD data.\n");
+    printf("> [up/down] select file or folder.\n");
+    printf("> [X] delete file or folder.\n");
+    printf("> [A] navigate inside a folder.\n");
+    printf("> [B] return to the parent folder.\n");
+    printf("> [Y] copy file/folder from/to\n      save/SD.\n");
+    printf("> [Y on dir root] copy current dir.\n");
+    printf("> [SELECT] reprint these instructions\n           and toggle sorting method\n");
+    printf("> [START] exit.\n");
 }
 
 void printAlert()
@@ -524,7 +553,7 @@ int checkInjectDirectory(char* path, lsDir* dir)
 
 int main()
 {
-	filesystemInit();
+    filesystemInit();
     //if (!doesFileNotExist("/3ds/svdt/no_alpha_sort",&sdmcFsHandle,sdmcArchive))
     if (file_exist("no_alpha_sort"))
         alphabetSort = 0;
@@ -561,8 +590,8 @@ int main()
                 //Make sure we can't load this again without going trough HBL
                 remove("/svdt/tid.bin");
             }
-	    }
-	    fclose (pFile);
+        }
+        fclose (pFile);
         secureGameFromFilesystem();
         getSecureValue();
     }
@@ -576,7 +605,7 @@ int main()
     hidScanInput();
     
     //if ((hidKeysHeld() & KEY_L) != doesFileNotExist("/3ds/svdt/disable_auto_backups",&sdmcFsHandle,sdmcArchive))
-	if ((hidKeysHeld() & KEY_L) == file_exist("disable_auto_backups"))
+    if ((hidKeysHeld() & KEY_L) == file_exist("disable_auto_backups"))
     {
         // always back up the data if one and only one of two conditions is met:
         //      no disable_auto_backups file (cannot be empty)
@@ -629,18 +658,18 @@ int main()
         machine_state = SET_TARGET_TITLE;
     
     gfxInitDefault();
-	gfxSet3D(false);
+    gfxSet3D(false);
     amInit();
     
     dirOverwriteAll = 0;
 
-	consoleInit(GFX_TOP, &titleBar);
-	consoleInit(GFX_TOP, &sdmcList);
-	consoleInit(GFX_TOP, &saveList);
-	consoleInit(GFX_TOP, &sdmcCursor);
-	consoleInit(GFX_TOP, &saveCursor);
-	consoleInit(GFX_BOTTOM, &statusBar);
-	consoleInit(GFX_TOP, &notifyBar);
+    consoleInit(GFX_TOP, &titleBar);
+    consoleInit(GFX_TOP, &sdmcList);
+    consoleInit(GFX_TOP, &saveList);
+    consoleInit(GFX_TOP, &sdmcCursor);
+    consoleInit(GFX_TOP, &saveCursor);
+    consoleInit(GFX_BOTTOM, &statusBar);
+    consoleInit(GFX_TOP, &notifyBar);
 
     consoleSetWindow(&titleBar,0,0,TOP_WIDTH,3);
     consoleSetWindow(&saveCursor,0,3,3,MAX_LS_LINES+1);
@@ -677,7 +706,7 @@ int main()
         printSecureGame();
         if(secureValueSet)
         {
-            debugOut("Secure value set.");
+            debugOutSuccess("Secure value set.");
             int i;
             for(i=0;i<8;i++)
                 printf("%02x ",secureValue[i]);
@@ -685,7 +714,7 @@ int main()
         }
     }
     
-	consoleSelect(&titleBar);
+    consoleSelect(&titleBar);
     textcolour(TEAL);
     printf("svdt 0.10.1, meladroit/willidleaway/suloku\n");
     printf("a hacked-together save data explorer/manager\n");
@@ -752,22 +781,22 @@ int main()
         textcolour(NEONGREEN);
         printf(titleTitle);
         gotoxy(0,29);
-        textcolour(WHITE);		
+        textcolour(WHITE);
         printf(productCode);
         printf(" - %016llX", tid);
         gotoxy(0,12);
         textcolour(SALMON);
-        wordwrap("Target app is not on gamecard. Fetching target app titles automatically is not implemented for NAND/SD apps. Use left/right on D-pad with the A button to select the correct target app name. Press B to skip.",BOTTOM_WIDTH);
+        wordwrap("Target app is not on gamecard. Fetching target app titles automatically is not implemented for NAND/SD apps. Use left/right on D-pad with the [A] button to select the correct target app name. Press [B] to skip.",BOTTOM_WIDTH);
         textcolour(WHITE);
     }
             
     int heldU = 0;
     int heldD = 0;
-	while (aptMainLoop())
-	{
-		hidScanInput();
-		if(hidKeysDown() & KEY_START)break;
-		if(machine_state == EXIT_REQUESTED)break;
+    while (aptMainLoop())
+    {
+        hidScanInput();
+        if(hidKeysDown() & KEY_START)break;
+        if(machine_state == EXIT_REQUESTED)break;
         if(machine_state == SET_TARGET_TITLE)
         {
             int titleTitle_update = 0;
@@ -827,8 +856,9 @@ int main()
                     Result res = FSUSER_RenameDirectory(&sdmcFsHandle,sdmcArchive,FS_makePath(PATH_CHAR,tempPath),sdmcArchive,FS_makePath(PATH_CHAR,destPath));
                     if (res)
                     {
+                        textcolour(RED);
                         printf("Failed with result code %08x",(unsigned int)res);
-                    } else { printf("Success!"); }
+                    } else { debugOutSuccess("Success!"); }
                 }
                 scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
                 clearTitleList();
@@ -844,7 +874,9 @@ int main()
                     for(i=0;i<8;i++)
                         printf("%02x ",secureValue[i]);
                     putchar('\n');
-                    wordwrap("Enable automatic secure value rewriting on restore? Press A to enable, B to disable.\n",BOTTOM_WIDTH);
+                    textcolour(YELLOW);
+                    wordwrap("Enable automatic secure value rewriting on restore?\n",BOTTOM_WIDTH);
+                    printf("\t[A] enable secure value rewriting\n\t[B] disable secure value rewriting\n");
                     previous_state = machine_state;
                     machine_state = CONFIRM_SECURE_VALUE;
                 }
@@ -871,7 +903,7 @@ int main()
             if(hidKeysDown() & KEY_A)
             {
                 printInstructions();
-                debugOut("Anti-anti savegame restore enabled.");
+                debugOutSuccess("Anti-anti savegame restore enabled.");
                 previous_state = machine_state;
                 machine_state = SELECT_SDMC;
             }
@@ -879,7 +911,7 @@ int main()
             {
                 whichSecureGame = SECURE_UNKNOWN;
                 printInstructions();
-                debugOut("Anti-anti savegame restore disabled.");
+                debugOutCancel("Anti-anti savegame restore disabled.");
                 previous_state = machine_state;
                 machine_state = SELECT_SDMC;
             }
@@ -898,7 +930,7 @@ int main()
                 for (i=0;i<5;i++)
                 {                
                     textcolour((enum colour)((1+i*6)%16));
-                    wordwrap("svdt has encountered an error, and has halted to protect your data. Press START to exit.\n", BOTTOM_WIDTH);
+                    wordwrap("svdt has encountered an error, and has halted to protect your data. Press [START] to exit.\n", BOTTOM_WIDTH);
                 }
                 previous_state = SVDT_IS_KILL;
             }
@@ -918,12 +950,14 @@ int main()
                 previous_state = CONFIRM_SAVE_ROOT;
                 consoleSelect(&statusBar);
                 putchar('\n');
-                wordwrap("You are about to extract all target save data to the SD card. To extract into a folder in the current SD working directory, press Y. To extract into a folder in /svdt/, press A. Press B to cancel.\n",BOTTOM_WIDTH);
+                textcolour(YELLOW);
+                wordwrap("You are about to extract all target save data to the SD card:",BOTTOM_WIDTH);
+                debugOutPrompt("\t[Y] Extract to SD working directory\n\t[A] Extract in folder at /svdt/\n\t[B] Cancel\n");
             }
             if(hidKeysDown() & KEY_B)
             {
                 printTarget();
-                debugOut("Save data extraction cancelled.");
+                debugOutCancel("Save data extraction cancelled.");
                 machine_state = SELECT_SAVE;
                 previous_state = CONFIRM_SAVE_ROOT;
             }
@@ -964,7 +998,7 @@ int main()
             if(goGoGadgetCopy)
             {
                 printTarget();
-                debugOut("Save data extraction complete.");
+                debugOutSuccess("Save data extraction complete.");
                 previous_state = CONFIRM_SAVE_ROOT;
                 notccwd_needs_update = 1;
             } else {
@@ -1000,7 +1034,7 @@ int main()
             switch (machine_state)
             {
                 case CONFIRM_DELETE:
-                    debugOut("Attempting to delete selection.");
+                    debugOut("> Attempting to delete selection.");
                     int i;
                     switch (cursor_y)
                     {
@@ -1050,7 +1084,7 @@ int main()
                 machine_state = previous_state;
                 previous_state = CONFIRM_DELETE;
                 printTarget();
-                debugOut("Delete unconfirmed.");
+                debugOutCancel("Delete unconfirmed.");
                 hidScanInput();
             }
         }
@@ -1058,12 +1092,12 @@ int main()
         {
             previous_state = machine_state;
             machine_state = CONFIRM_DELETE;
-            debugOut("Press SELECT to confirm delete!");
+            debugOutPrompt("Press [SELECT] to confirm delete!");
             printAlert();
         }
         if((hidKeysDown() & KEY_Y)&&(previous_state!=CONFIRM_SAVE_ROOT))
         {
-            debugOut("Attempting to copy selection.");
+            debugOut("> Attempting to copy selection.");
             int i;
             switch (cursor_y)
             {
@@ -1091,8 +1125,8 @@ int main()
                     else
                     {
                         debugOut("Copying subdirectory.");
-                        //printf("using basename %s",lsDirBasename(ccwd));
-                        copyDir(ccwd,NULL,notccwd,lsDirBasename(ccwd));
+                        //printf("using basename %s",lsDirBasename(notcwd));
+                        copyDir(ccwd,NULL,notccwd,lsDirBasename(notccwd));
                     }
                     notccwd_needs_update = 1;
                     break;
@@ -1236,7 +1270,7 @@ int main()
             freeDir(ccwd);
             scanDir(ccwd,curArchive,curFsHandle);
             debugOut("Scanned current directory.");
-            printf("[path: %s]\n[dirEntryCount: %d]",ccwd->thisDir,ccwd->dirEntryCount);
+            printf("[path: %s]\n[dirEntryCount: %d]\n",ccwd->thisDir,ccwd->dirEntryCount);
             //debugOut("and now some formalities");
             consoleSelect(curList);
             consoleClear();
@@ -1262,7 +1296,7 @@ int main()
             }
             
             debugOut("Scanned not-current directory.");
-            printf("[path: %s]\n[dirEntryCount: %d]",notccwd->thisDir,notccwd->dirEntryCount);
+            printf("[path: %s]\n[dirEntryCount: %d]\n",notccwd->thisDir,notccwd->dirEntryCount);
             //debugOut("and now some formalities");
             printDir(notccwd);
             enum state temp_state = previous_state;
@@ -1270,14 +1304,14 @@ int main()
             machine_state = temp_state;
             redrawCursor(&cursor_y,notccwd);
         }
-		gspWaitForVBlank();
+        gspWaitForVBlank();
         // Flush and swap framebuffers
         gfxFlushBuffers();
         gfxSwapBuffers();
-	}
+    }
 
-	filesystemExit();
+    filesystemExit();
     amExit();
-	gfxExit();
-	return 0;
+    gfxExit();
+    return 0;
 }
