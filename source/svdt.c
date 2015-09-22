@@ -8,6 +8,7 @@
 #include "smdh.h"
 #include "svdt.h"
 #include "filesystem.h"
+#include "text.h"
 
 void freeDir(lsDir* dir)
 {
@@ -45,7 +46,10 @@ void gotoSubDirectory(lsDir* dir, char* basename)
         cwd = strcat(cwd,"/");
     }
     if (canHasConsole)
+    {
+        textcolour(NEONGREEN);
         printf("\nsubdir path: %s\n",cwd);
+    }
 }
 
 char* lsDirBasename(lsDir* dir)
@@ -101,7 +105,8 @@ void scanDir(lsDir* dir, FS_archive* archive, Handle* fsHandle)
         {
             if (canHasConsole)
             {
-                printf("error reading directory\n");
+                textcolour(RED);
+                printf("! error reading directory\n");
                 printf("result code %08x\n",(unsigned int)res);
             }
             return;
