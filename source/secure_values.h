@@ -21,6 +21,7 @@ typedef enum secureGame
     SECURE_POKEOR,
     SECURE_POKEAS,
     SECURE_POKERW,
+	SECURE_MH4U,
     SECURE_EMERGENCY,
     SECURE_CONFIG,
     SECURE_UNKNOWN
@@ -44,3 +45,5 @@ Result getPokeRumbleSecureValue();
 Result writeSecureValue();
 Result writeSecureValue2(const char* productCode);
 Result writePokeRumbleSecureValue();
+Result getMH4USecureValue();
+Result writeMH4USecureValue();

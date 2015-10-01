@@ -462,7 +462,7 @@ void redrawCursor(int* cursor_y, lsDir* dir)
     }
     if (*cursor_y<0)
         *cursor_y = 0;
-    int cursor_y_bound = HEIGHT-5;
+    int cursor_y_bound = HEIGHT-6;
     if (dir->dirEntryCount+1<cursor_y_bound)
         cursor_y_bound = dir->dirEntryCount+1;
     if (*cursor_y>cursor_y_bound)
@@ -575,6 +575,10 @@ int main()
         getTitleTitle(0x0,2,titleTitle);
         titleTitle_set = 1;
     } else {
+		aptOpenSession();
+		APT_GetProgramID(NULL, &tid2);
+		aptCloseSession();
+/*
         //Fetch title from /svdt/tid.bin
         FILE * pFile;
         long lSize;
@@ -592,6 +596,7 @@ int main()
             }
         }
         fclose (pFile);
+*/
         secureGameFromFilesystem();
         getSecureValue();
     }
@@ -712,7 +717,7 @@ int main()
     
     consoleSelect(&titleBar);
     textcolour(TEAL);
-    printf("svdt 0.10.2, meladroit/willidleaway/suloku\n");
+    printf("svdt 0.11, meladroit/willidleaway/suloku\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);
@@ -1219,13 +1224,15 @@ int main()
                     cwd_needs_update = 1;
                     break;
                 case 1:
-                    if (strcmp("/",(const char*)ccwd->thisDir))
+                    if (strcmp("/",(const char*)ccwd->thisDir) && ccwd->lsOffset == 0)
                     {
                         gotoParentDirectory(ccwd);
                         debugOut("Navigating to parent directory.");
                         cwd_needs_update = 1;
+					    break;
                     }
-                    break;
+					if (ccwd->lsOffset == 0)
+						break;
                 default: ;
                     lsLine* selection = ccwd->firstLine;
                     int i;

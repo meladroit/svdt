@@ -34,7 +34,7 @@ INCLUDES	:=	include
 
 APP_TITLE       := svdt
 APP_DESCRIPTION := it's tdvs in reverse without the vowels
-APP_AUTHOR      := meladroit/willidleaway
+APP_AUTHOR      := meladroit/willidleaway/suloku
 
 #---------------------------------------------------------------------------------
 # options for code generation
