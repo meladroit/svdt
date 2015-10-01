@@ -9,25 +9,32 @@
 #include "svdt.h"
 #include "filesystem.h"
 #include "secure_values.h"
+#include "mh4u.h"
 
 int secureValueSet = 0;
 u8 secureValue[SECURE_VALUE_SIZE] = {0};
 secureGame whichSecureGame = SECURE_UNKNOWN;
 
 const u32 const secureOffsets[PRECONF_GAMES] = {ACNL_OFFSET, SSB_OFFSET, POKETORU_OFFSET, POKEXY_OFFSET, POKEXY_OFFSET, POKEORAS_OFFSET, POKEORAS_OFFSET};
-const char const secureFilenames[PRECONF_GAMES][MAX_PATH_LENGTH] = {"/garden.dat", "/save_data/account_data.bin", "/save_data/savedata.bin", "/main", "/main", "/main", "/main"};
+const char const secureFilenames[PRECONF_GAMES][MAX_PATH_LENGTH] = {"/garden.dat", "/save_data/account_data.bin", "/savedata.bin", "/main", "/main", "/main", "/main"};
 const char const secureProductCodes[PRECONF_GAMES][16] = {"CTR-P-EGD",
     "CTR-P-NXC", "CTR-N-KRX",
     "CTR-P-EKJ", "CTR-P-EK2",
     "CTR-P-ECR", "CTR-P-ECL"}; // minus region
 const char* const pokeRumbleWorldCode = "CTR-N-KCF";
+const char* const MH4UCode = "CTR-P-ECL";
 
 char configProductCode[9] = {0};
 
 const char* const POKERW_SVPATH = "/00slot00/00main.dat";
+const char* const MH4U_SVPATH1 = "/user1";
+const char* const MH4U_SVPATH2 = "/user2";
+const char* const MH4U_SVPATH3 = "/user3";
 const char* const customSecurePath = "/svdt_sv_data";
 const char* const secureConfigPath = "asr.dat";
 const char* const secureConfigBasename = "asr.dat";
+
+int MH4U_file = 0;
 
 int isSecureFile(const char* destPath)
 {
@@ -36,6 +43,19 @@ int isSecureFile(const char* destPath)
         case SECURE_POKERW:
             return (!strcmp(destPath,POKERW_SVPATH));
             break;
+		case SECURE_MH4U:
+			if (!strcmp(destPath,MH4U_SVPATH1)){
+				MH4U_file = 1;
+				return 1;
+			}else if (!strcmp(destPath,MH4U_SVPATH2)){
+				MH4U_file = 2;
+				return 1;
+			}else if (!strcmp(destPath,MH4U_SVPATH3)){
+				MH4U_file = 3;
+				return 1;
+			}else{
+				return 0;
+			}
         case SECURE_EMERGENCY: ;
             FILE* offsets = fopen(customSecurePath,"rb");
             char filenameBuffer[MAX_PATH_LENGTH];
@@ -78,6 +98,20 @@ int isSecureFile2(const char* destPath, const char* productCode)
 {
     if (!strncmp(productCode,pokeRumbleWorldCode,9))
         return (!strcmp(destPath,POKERW_SVPATH));
+    if (!strncmp(productCode,MH4UCode,9)){
+			if (!strcmp(destPath,MH4U_SVPATH1)){
+				MH4U_file = 1;
+				return 1;
+			}else if (!strcmp(destPath,MH4U_SVPATH2)){
+				MH4U_file = 2;
+				return 1;
+			}else if (!strcmp(destPath,MH4U_SVPATH3)){
+				MH4U_file = 3;
+				return 1;
+			}else{
+				return 0;
+			}
+	}
     if(!checkSecureConfig())
         return -1;
     if(!secureValueSet)
@@ -118,6 +152,12 @@ void secureGameFromProductCode(const char* productCode)
         whichSecureGame = SECURE_POKERW;
         return;
     }
+    // and also Monster Hunter 4 Ultimate ...
+    if (!strncmp(productCode,MH4UCode,9))
+    {
+        whichSecureGame = SECURE_MH4U;
+        return;
+    }	
     // ideally we actually have asr.dat in /3ds/svdt
     if(checkSecureConfig())
     {
@@ -250,6 +290,9 @@ void printSecureGame()
         case SECURE_POKERW:
             printf("oh god it's Pokemon Rumble World");
             break;
+        case SECURE_MH4U:
+            printf("oh god it's Monster Hunter 4 Ultimate");
+            break;
         default:
             printf("no, not inferred at all");
             break;
@@ -264,6 +307,9 @@ Result getSecureValue()
     {
         case SECURE_POKERW:
             return getPokeRumbleSecureValue();
+            break;
+        case SECURE_MH4U:
+            return getMH4USecureValue();
             break;
         case SECURE_EMERGENCY: ;
             FILE* offsets = fopen(customSecurePath,"rb");
@@ -295,6 +341,8 @@ Result getSecureValue2(const char* productCode)
 {
     if (!strncmp(productCode,pokeRumbleWorldCode,9))
         return getPokeRumbleSecureValue();
+    if (!strncmp(productCode,MH4UCode,9))
+        return getMH4USecureValue();	
     if(!checkSecureConfig())
         return -1;
     //printf("\nopening asr.dat\n");
@@ -397,6 +445,9 @@ Result writeSecureValue()
         case SECURE_POKERW:
             writePokeRumbleSecureValue();
             break;
+        case SECURE_MH4U:
+            writeMH4USecureValue();
+            break;
         case SECURE_EMERGENCY: ;
             FILE* offsets = fopen(customSecurePath,"rb");
             char filenameBuffer[MAX_PATH_LENGTH];
@@ -427,6 +478,8 @@ Result writeSecureValue2(const char* productCode)
 {
     if (!strncmp(productCode,pokeRumbleWorldCode,9))
         return writePokeRumbleSecureValue();
+    if (!strncmp(productCode,MH4UCode,9))
+        return writeMH4USecureValue();
     if(!checkSecureConfig())
         return -1;
     if(!secureValueSet)
@@ -535,5 +588,99 @@ Result writePokeRumbleSecureValue()
 	res = FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
     
     free(final_buffer);
+    return 0;
+}
+
+Result getMH4USecureValue()
+{
+	u64 size;
+	u8* buffer;
+	//Try to open all savefiles
+	Result res = getSaveGameFileSize(MH4U_SVPATH1,&size);
+	if (res != 0 ){
+		res = getSaveGameFileSize(MH4U_SVPATH2,&size);
+			if (res != 0 ){
+				res = getSaveGameFileSize(MH4U_SVPATH3,&size);
+				if (res != 0){
+					return res;
+				}else{
+					buffer = (u8*)malloc(size);
+					res = readBytesFromSaveFile(MH4U_SVPATH3,0,buffer,size);
+				}
+			}else{
+				buffer = (u8*)malloc(size);
+				res = readBytesFromSaveFile(MH4U_SVPATH2,0,buffer,size);
+			}
+	} else{
+		buffer = (u8*)malloc(size);
+		res = readBytesFromSaveFile(MH4U_SVPATH1,0,buffer,size);
+	}
+	if (res != 0 ) return res;
+
+	MH4U_decryptBuff(&buffer, size);
+        
+    memcpy((void*)secureValue,(void*)(buffer+8+0x112),8);
+    secureValueSet = 1;
+    
+    free(buffer);
+    return 0;
+}
+
+Result writeMH4USecureValue()
+{
+    if(!secureValueSet) return -1;
+
+	char PATH[12];
+	
+	switch (MH4U_file)
+    {
+        case 1:
+            strcpy(PATH, MH4U_SVPATH1);
+            break;
+        case 2:
+            strcpy(PATH, MH4U_SVPATH2);
+            break;
+        case 3:
+            strcpy(PATH, MH4U_SVPATH3);
+            break;
+        default:
+			return 0;
+            break;
+    }
+	//Read file
+	u64 size;
+	Result res = getSaveGameFileSize(PATH,&size);
+	if (res != 0) return res;
+	u8* buffer = (u8*)malloc(size);
+	res = readBytesFromSaveFile(PATH,0,buffer,size);
+	if (res != 0) return res;
+
+	//Decrypt
+	MH4U_decryptBuff(&buffer, size);
+    
+	//Change secure value
+    memcpy((void*)(buffer+8+0x112),(void*)secureValue,8);
+    
+	//Encrypt
+	MH4U_encryptBuff(&buffer, size-8);
+	
+	//Write file
+    deleteFile((char*)PATH,&saveGameArchive,&saveGameFsHandle);
+    
+	Handle outFileHandle;
+	u32 bytesWritten;
+	
+	res = FSUSER_OpenFile(&saveGameFsHandle, &outFileHandle, saveGameArchive, FS_makePath(PATH_CHAR, PATH), FS_OPEN_CREATE | FS_OPEN_WRITE, FS_ATTRIBUTE_NONE);
+	if(res){return res;}
+
+	res = FSFILE_Write(outFileHandle, &bytesWritten, 0, buffer, size, 0x10001);
+	if(res){return res;}
+
+	res = FSFILE_Close(outFileHandle);
+	if(res){return res;}
+
+	res = FSUSER_ControlArchive(saveGameFsHandle, saveGameArchive);
+    
+    free(buffer);
     return 0;
 }
