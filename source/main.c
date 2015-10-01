@@ -605,15 +605,11 @@ int main()
     hidScanInput();
     
     //if ((hidKeysHeld() & KEY_L) != doesFileNotExist("/3ds/svdt/disable_auto_backups",&sdmcFsHandle,sdmcArchive))
-    if ((hidKeysHeld() & KEY_L) == file_exist("disable_auto_backups"))
+    if ((hidKeysHeld() & KEY_L) || !file_exist("disable_auto_backups"))
     {
-        // always back up the data if one and only one of two conditions is met:
-        //      no disable_auto_backups file (cannot be empty)
-        //      L is held down at startup
         //  so! if disable_auto_backups is present but L is held down, we execute a backup
-        //      if disable_auto_backups is absent, and L is held down, no backup is made
         //      if disable_auto_backups is present but L is left open, no backup is made
-        //      if disable_auto_backups is absent, and L is left open, we execute a backup
+        //      if disable_auto_backups is absent, we always execute a backup
         machine_state = SELECT_SAVE;
         memset(destPath,0,MAX_PATH_LENGTH);
         gotoSubDirectory(&cwd_sdmc,"svdt");
