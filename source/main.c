@@ -553,6 +553,7 @@ int checkInjectDirectory(char* path, lsDir* dir)
 
 int main()
 {
+    amInit();
     filesystemInit();
     //if (!doesFileNotExist("/3ds/svdt/no_alpha_sort",&sdmcFsHandle,sdmcArchive))
     if (file_exist("no_alpha_sort"))
@@ -562,6 +563,7 @@ int main()
     
     u64 tid;
     u64 tid2 = 0;
+    char productCodeBuffer[16] = {0};
     int titleTitles_available;
     char destPath[MAX_PATH_LENGTH];
     char tempStr[16] = {0};
@@ -597,7 +599,12 @@ int main()
         }
         fclose (pFile);
 */
-        secureGameFromFilesystem();
+        AM_GetTitleProductCode(mediatype,tid2,productCodeBuffer);
+        strncpy(productCode,productCodeBuffer,9);
+        secureGameFromProductCode(productCode);
+        if (whichSecureGame == SECURE_UNKNOWN) {
+            secureGameFromFilesystem();
+        }
         getSecureValue();
     }
     
@@ -660,7 +667,6 @@ int main()
     
     gfxInitDefault();
     gfxSet3D(false);
-    amInit();
     
     dirOverwriteAll = 0;
 
@@ -703,7 +709,7 @@ int main()
     }
     if (mediatype!=2)
     {
-        printf("Secure game inferred from filesystem:\n ");
+        printf("Secure game inferred at startup:\n ");
         printSecureGame();
         if(secureValueSet)
         {
@@ -745,7 +751,6 @@ int main()
     
     u8 sdmcCurrent, sdmcPrevious;
     sdmcCurrent = 1;
-    char productCodeBuffer[16] = {0};
     
     if (mediatype!=2)
         machine_state = SET_TARGET_TITLE;
