@@ -568,7 +568,7 @@ int main()
     time_t temps = time(NULL);
     strftime(tempStr,16,"%Y%m%d_%H%M%S",gmtime(&temps));
     strncpy(titleTitle,tempStr,MAX_PATH_LENGTH);
-    FSUSER_GetMediaType(saveGameFsHandle,&mediatype);
+    FSUSER_GetMediaType(&saveGameFsHandle,&mediatype);
     if (mediatype==2)
     {
         // we fetch target app title automatically for gamecards
@@ -717,7 +717,7 @@ int main()
     
     consoleSelect(&titleBar);
     textcolour(TEAL);
-    printf("svdt 0.11, meladroit/willidleaway/suloku\n");
+    printf("svdt 0.10.42, meladroit/willidleaway/suloku\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);

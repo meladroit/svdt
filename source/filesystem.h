@@ -8,7 +8,7 @@ Result filesystemInit();
 Result filesystemExit();
 Result filesystemSoftReset();
 Result FSUSER_ControlArchive(Handle handle, FS_archive archive);
-Result FSUSER_GetMediaType(Handle handle, u8* mediatype);
+//Result FSUSER_GetMediaType(Handle handle, u8* mediatype);
 Result loadFile(char* path, void* dst, FS_archive* archive, Handle* fsHandle, u64 maxSize);
 Result writeFile(char* path, u8* data, u32 size, FS_archive* archive, Handle* fsHandle);
 Result deleteFile(char* path, FS_archive* archive, Handle* fsHandle);

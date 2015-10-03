@@ -113,7 +113,7 @@ Result FSUSER_ControlArchive(Handle handle, FS_archive archive)
 	return cmdbuf[1];
 }
 
-Result FSUSER_GetMediaType(Handle handle, u8* mediatype)
+/*Result FSUSER_GetMediaType(Handle handle, u8* mediatype)
 {
 	u32* cmdbuf=getThreadCommandBuffer();
 
@@ -126,7 +126,7 @@ Result FSUSER_GetMediaType(Handle handle, u8* mediatype)
         *mediatype = (u8)cmdbuf[2];
  
 	return cmdbuf[1];
-}
+}*/
 
 // let's add stuff from 3ds_hb_menu, just because
 Result loadFile(char* path, void* dst, FS_archive* archive, Handle* fsHandle, u64 maxSize)
