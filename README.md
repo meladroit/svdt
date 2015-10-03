@@ -1,12 +1,12 @@
 # svdt
 ## tdvs, but backwards (whatever that means)
-svdt is a save explorer and manager for the 3DS. It is heavily based on smealum's 3ds_hb_menu/browser and sploit_installer in many parts, and the author is indebted to smea for making all of his code open-source.
+svdt is a save explorer and manager for the 3DS. It is heavily based on smealum's 3ds_hb_menu/browser and sploit_installer in many parts, and the authors are indebted to smea for making all of his code open-source.
 
 ### Installation and startup
 Put svdt.3dsx, svdt.smdh, and svdt.xml in sd:/3ds/svdt/. Run from the homebrew launcher. Make sure you can select a target app, since svdt will want to access its save data.
 
 Since some games don't handle gfxInitDefault() well for some reason (Animal Crossing: New Leaf is a prominent example), svdt has some emergency operations available for all games. Since the homebrew launcher doesn't care about the L/R shoulder buttons, these are ideal for binding to functions that need to be executed before the application gets to gfxInitDefault().
-* svdt automatically backs up all save data at startup into a time-stamped folder in the SD card (ex. sd:/svdt/Cubic Ninja/20151021_060942/).
+* svdt automatically backs up all save data at startup into a time-stamped folder in the SD card (ex. sd:/svdt/Cubic Ninja/20151021_060942/). If this behaviour is undesirable, put a non-empty file with the name 'disable_auto_backups' (no extension), and svdt will back up data at startup only if the left shoulder button is held down.
 * Hold down the right shoulder button while starting svdt to dump the contents of sd:/svdt_inject/ into the target save data. If no directory named svdt_inject exists in the SD root, nothing is attempted.
 
 When svdt starts up, it checks for whether the target game is on a gamecard or the SD card.
@@ -19,7 +19,7 @@ While the game title is otherwise unnecessary for actually accessing data, svdt 
 
 ### Brief UI guide
 * There are two panes in view. The left pane lists files and directories in the target app's save data. The right pane does the same for the SD card. Both listings start at root.
-* A line along the bottom of the upper screen usually shows the target title. If an action selected by the user needs confirmation, this is indicated instead in this line.
+* A status line along the bottom of the upper screen usually shows the target title. If an action selected by the user needs confirmation, the status line indicates this fact.
 * A cursor to the left of the active listing indicates the current selected entry. Use up/down on the D-pad to move the cursor up and down the listing. Use L/R D-pad or shoulder buttons to switch which listing is selected (SD versus save data).
 * The top listing of each pane is the current working directory path, either in full or truncated. (The full path is always shown in the debug output when the directory is first selected.)
  * Selecting this line with the cursor and pressing A refreshes the whole listing.
@@ -30,12 +30,12 @@ While the game title is otherwise unnecessary for actually accessing data, svdt 
  * Press X to delete the selected file or directory (recursively). svdt will ask for confirmation by pressing SELECT.
  * Press Y to copy the selected file or directory (recursively) across. svdt will ask for confirmation if it sees that the file you are trying to copy may overwrite a file in the destination directory.
  * If there are more files and directories in the folder than can fit on the screen, you actually can scroll up and down past the last on-screen item. There is no visual indicator for this, however.
-* Press SELECT to see a set of instructions on the lower screen. Normally, the screen is full of moderately useful debug output. Pressing SELECT also switches how SD and save data listings are sorted (by date by default, by name if desired).
+* Press SELECT to see a set of instructions on the lower screen. Normally, the screen is full of moderately useful debug output. Pressing SELECT also switches how SD and save data listings are sorted (by name by default, by last modification if desired—no ascending/descending sort selection for now).
 * Press START to exit back to the homebrew launcher.
 
 ### Known issues
 * Some games don't let svdt start up, leaving it hanging on an incoherent screen. This is also an issue with profi200's save_manager (and perhaps could be correlated with regionFOUR incompatibility?), but save_manager is designed simply enough that it will still work if you press the right buttons. svdt doesn't have this luxury, but will automatically back up saves, and will also automatically inject saves if the right shoulder button is held down at startup (see above for instructions).
 * The homebrew launcher may hang while trying to start svdt, on a blue or white or otherwise abstract screen. I swear it's not my fault.
-* The homebrew launcher doesn't always show the target app selection screen. svdt has no mechanism in place at the moment to check whether there is a target app, but this should be fairly straightforward to implement (check for target app name?). If svdt starts without a target, then the output is garbled slightly at first, but it functions for the most part as a SD data browser. There are better SD card browsers, so using svdt in this way is not recommended.
+* The homebrew launcher doesn't always show the target app selection screen. svdt has no mechanism in place at the moment to check whether there is a target app. If svdt starts without a target, it detects a random target title with an empty save filesystem, but it functions for the most part as a SD data browser. There are better SD card browsers, so using svdt in this way is not recommended.
 * svdt does not handle running out of space gracefully. *This is because if the save data does run out of space, then trying to continue writing to save data (even after reinitialising FS handles and archives) may corrupt it.* For now, if svdt detects any problem at all with manipulating files, it just throws a fatal error and asks you to quit out. There may not really be a better option.
 * The code is a mess, and I just need to comment it.
