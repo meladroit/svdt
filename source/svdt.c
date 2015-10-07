@@ -229,7 +229,7 @@ Result getTitleTitle(u64 tid, u8 mediatype, char* titleTitle)
     // (necessary because we just use this string for directory names)
     // (thanks Blazingflare on GBAtemp)
     char* forbiddenChar;
-    while ((forbiddenChar = strpbrk(titleTitle,"<>:\"\\/|?*")))
+    while ((forbiddenChar = strpbrk(titleTitle,"<>:\"\\/|?*.")))
     {
         titleTitle[forbiddenChar-titleTitle] = ' ';
     }
