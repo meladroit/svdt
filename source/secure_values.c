@@ -22,7 +22,7 @@ const char const secureProductCodes[PRECONF_GAMES][16] = {"CTR-P-EGD",
     "CTR-P-EKJ", "CTR-P-EK2",
     "CTR-P-ECR", "CTR-P-ECL"}; // minus region
 const char* const pokeRumbleWorldCode = "CTR-N-KCF";
-const char* const MH4UCode = "XXXXXXXXX";
+const char* const MH4UCode = "CTR-P-BFG";
 
 char configProductCode[9] = {0};
 
