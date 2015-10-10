@@ -723,7 +723,7 @@ int main()
     
     consoleSelect(&titleBar);
     textcolour(TEAL);
-    printf("svdt 0.10.42, meladroit/willidleaway/suloku\n");
+    printf("svdt 0.10.42b, meladroit/willidleaway/suloku\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);
