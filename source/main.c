@@ -522,14 +522,14 @@ void printAlert()
 }
 
 char titleTitle[0x40];
-int titleTitle_set = 0;
+int titleTitle_set = -1;
 
 void printTarget()
 {
     consoleSelect(&notifyBar);
     consoleClear();
     gotoxy(0,0);
-    if(titleTitle_set)
+    if(titleTitle_set > -1)
     {
         textcolour(TEAL);
         printf("Title: ");
@@ -577,9 +577,9 @@ int main()
         getTitleTitle(0x0,2,titleTitle);
         titleTitle_set = 1;
     } else {
-		aptOpenSession();
-		APT_GetProgramID(NULL, &tid2);
-		aptCloseSession();
+        aptOpenSession();
+        APT_GetProgramID(NULL, &tid2);
+        aptCloseSession();
 /*
         //Fetch title from /svdt/tid.bin
         FILE * pFile;
@@ -599,6 +599,23 @@ int main()
         }
         fclose (pFile);
 */
+        getTitleList(mediatype,&titleTitles_available);
+        if (titleTitle_set < 0){
+            if (tid2 != 0){
+                lsTitle* currentTitle = firstTitle;
+                int i = 0;
+                while(currentTitle != NULL){
+                    if (currentTitle->thisTitle == tid2){
+                        titleTitle_set = i;
+                        getTitleTitle(tid2, mediatype, titleTitle);
+                        tid = tid2;
+                        break;
+                    }
+                    currentTitle = currentTitle->nextTitle;
+                    i++;
+                }
+            }
+        }
         AM_GetTitleProductCode(mediatype,tid2,productCodeBuffer);
         strncpy(productCode,productCodeBuffer,9);
         secureGameFromProductCode(productCode);
@@ -625,7 +642,7 @@ int main()
         machine_state = SELECT_SAVE;
         memset(destPath,0,MAX_PATH_LENGTH);
         gotoSubDirectory(&cwd_sdmc,"svdt");
-        if (titleTitle_set)
+        if (titleTitle_set > -1)
         {
             strcat(destPath,"/svdt/");
             strcat(destPath,titleTitle);
@@ -634,7 +651,7 @@ int main()
         }
         copyDir(&cwd_save,NULL,&cwd_sdmc,tempStr);
         gotoParentDirectory(&cwd_sdmc);
-        if (titleTitle_set)
+        if (titleTitle_set > -1)
         {
             gotoParentDirectory(&cwd_sdmc);
         }
@@ -723,7 +740,7 @@ int main()
     
     consoleSelect(&titleBar);
     textcolour(TEAL);
-    printf("svdt 0.10.42b, meladroit/willidleaway/suloku\n");
+    printf("svdt 0.10.42c, meladroit/willidleaway/suloku\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);
@@ -756,26 +773,28 @@ int main()
         machine_state = SET_TARGET_TITLE;
     if (machine_state == SET_TARGET_TITLE)
     {
-        getTitleList(mediatype,&titleTitles_available);
+        //getTitleList(mediatype,&titleTitles_available);
         consoleSelect(&statusBar);
         gotoxy(0,10);
         int i;
         for (i=0;i<BOTTOM_WIDTH;i++) { printf(" "); }
-        if (tid2 != 0){
-            lsTitle* currentTitle = firstTitle;
-            int i = 0;
-            while(currentTitle != NULL){
-                if (currentTitle->thisTitle == tid2){
-                    titleTitle_set = i;
-                    getTitleTitle(tid2, mediatype, titleTitle);
-                    tid = tid2;
-                    break;
+        if (titleTitle_set < 0){
+            if (tid2 != 0){
+                lsTitle* currentTitle = firstTitle;
+                int i = 0;
+                while(currentTitle != NULL){
+                    if (currentTitle->thisTitle == tid2){
+                        titleTitle_set = i;
+                        getTitleTitle(tid2, mediatype, titleTitle);
+                        tid = tid2;
+                        break;
+                    }
+                    currentTitle = currentTitle->nextTitle;
+                    i++;
                 }
-                currentTitle = currentTitle->nextTitle;
-                i++;
             }
         }
-        if (!titleTitle_set)
+        if (titleTitle_set < 0)
             nthTitleInList(titleTitle_set,mediatype,titleTitle,&tid);
         AM_GetTitleProductCode(mediatype,tid,productCodeBuffer);
         strncpy(productCode,productCodeBuffer,9);
@@ -798,6 +817,7 @@ int main()
             
     int heldU = 0;
     int heldD = 0;
+    bool firstloop = false;
     while (aptMainLoop())
     {
         hidScanInput();
@@ -840,14 +860,13 @@ int main()
                 printf(productCode);
                 printf(" - %016llX", tid);
             }
-            if(hidKeysDown() & KEY_A)
+            if(hidKeysDown() & KEY_A || (titleTitle_set > -1 && !firstloop))
             {
-                titleTitle_set = 1;
                 printInstructions();
                 printTarget();
                 previous_state = machine_state;
                 machine_state = SELECT_SDMC;
-                if (canHasConsole == 2)
+                if (canHasConsole == 2 && titleTitle_set < 0)
                 {
                     debugOut("Trying to rename dump directory");
                     char tempPath[MAX_PATH_LENGTH] = {0};
@@ -866,6 +885,7 @@ int main()
                         printf("Failed with result code %08x",(unsigned int)res);
                     } else { debugOutSuccess("Success!"); }
                 }
+                titleTitle_set = 1;
                 scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
                 clearTitleList();
                 // if we're here, then mediatype!=2, so ...
@@ -902,6 +922,7 @@ int main()
             // Flush and swap framebuffers
             gfxFlushBuffers();
             gfxSwapBuffers();
+            firstloop = true;
             continue;
         }
         if(machine_state == CONFIRM_SECURE_VALUE)
@@ -1234,10 +1255,10 @@ int main()
                         gotoParentDirectory(ccwd);
                         debugOut("Navigating to parent directory.");
                         cwd_needs_update = 1;
-					    break;
+                        break;
                     }
-					if (ccwd->lsOffset == 0)
-						break;
+                    if (ccwd->lsOffset == 0)
+                        break;
                 default: ;
                     lsLine* selection = ccwd->firstLine;
                     int i;

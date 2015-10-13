@@ -42,7 +42,7 @@ int MH4U_decryptBuff(u8** inbuff, u64 lSize){
     buffer = *inbuff;
 
     //Start decryption
-        printf ("Decrypting...\n");
+        //printf ("Decrypting...\n");
 
         BLOWFISH_CTX ctx;
         Blowfish_Init (&ctx, (unsigned char*)"blowfish key iorajegqmrna4itjeangmb agmwgtobjteowhv9mope", 56);
@@ -52,12 +52,15 @@ int MH4U_decryptBuff(u8** inbuff, u64 lSize){
         //Verify
         unsigned short SIXTEEN;
         memcpy (&SIXTEEN, buffer, 2);
-        if (SIXTEEN != 16) printf ("\tDecryption failed!\n");
+        if (SIXTEEN != 16){
+			//printf ("\tDecryption failed!\n");
+			return 0;
+		}
 
         //Get Key
         unsigned short KEY;
         memcpy (&KEY, buffer+2, 2);
-        printf("\tKey: %X\n",KEY);
+        //printf("\tKey: %X\n",KEY);
         unsigned short out;
         unsigned int tempkey = KEY;
         unsigned int csum1 = 0;
@@ -90,15 +93,15 @@ int MH4U_decryptBuff(u8** inbuff, u64 lSize){
             csum_calc += byte;
         }
         csum_calc &= 0xFFFFFFFF;
-        printf ("\tCalculated checksum: %08X\n", csum_calc);
+        //printf ("\tCalculated checksum: %08X\n", csum_calc);
 
         //Get file checksum
         unsigned int csum;
         csum = ((csum2 & 0xFFFF) << 16) | (csum1 & 0xFFFF);
-        printf ("\tFile checksum:       %08X\n", csum);
+        //printf ("\tFile checksum:       %08X\n", csum);
 
         if (csum != csum_calc){
-            printf("Checksum mismatch!\n");
+            //printf("Checksum mismatch!\n");
             return 0;
         }
 
@@ -112,7 +115,7 @@ int MH4U_encryptBuff(u8** inbuff, u64 lSize){
 
     buffer2 = *inbuff;
 
-        printf("Encrypting buffer...\n");
+        //printf("Encrypting buffer...\n");
     //put 16 bit "16" magic in buffer2
         short tmp = 16;
         memcpy (buffer2, &tmp, 2);
@@ -125,7 +128,7 @@ int MH4U_encryptBuff(u8** inbuff, u64 lSize){
             csum_calc2 += byte2;
         }
         csum_calc2 &= 0xFFFFFFFF;
-        printf ("\tCalculated checksum: %08X\n", csum_calc2);
+        //printf ("\tCalculated checksum: %08X\n", csum_calc2);
 
         //put checksum in buffer2
         memcpy (buffer2+4, &csum_calc2, 4);
@@ -137,7 +140,7 @@ int MH4U_encryptBuff(u8** inbuff, u64 lSize){
         KEY2 = ((KEY2 << 7) & 0xFFFF) | (KEY2 >> 9); //16bit rotated left 7x
         //printf("\tkey2: %d\n", KEY2);
         KEY2 ^= 0x484D; // xor with "MH"
-        printf("\tKEY: %X\n", KEY2);
+        //printf("\tKEY: %X\n", KEY2);
 
         //put 16 bit key in buffer2
         tmp = KEY2;
