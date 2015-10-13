@@ -522,14 +522,14 @@ void printAlert()
 }
 
 char titleTitle[0x40];
-int titleTitle_set = 0;
+int titleTitle_set = -1;
 
 void printTarget()
 {
     consoleSelect(&notifyBar);
     consoleClear();
     gotoxy(0,0);
-    if(titleTitle_set)
+    if(titleTitle_set > -1)
     {
         textcolour(TEAL);
         printf("Title: ");
@@ -600,7 +600,7 @@ int main()
         fclose (pFile);
 */
 	    getTitleList(mediatype,&titleTitles_available);
-		if (!titleTitle_set){
+		if (titleTitle_set < 0){
 			if (tid2 != 0){
 				lsTitle* currentTitle = firstTitle;
 				int i = 0;
@@ -642,7 +642,7 @@ int main()
         machine_state = SELECT_SAVE;
         memset(destPath,0,MAX_PATH_LENGTH);
         gotoSubDirectory(&cwd_sdmc,"svdt");
-        if (titleTitle_set)
+        if (titleTitle_set > -1)
         {
             strcat(destPath,"/svdt/");
             strcat(destPath,titleTitle);
@@ -651,7 +651,7 @@ int main()
         }
         copyDir(&cwd_save,NULL,&cwd_sdmc,tempStr);
         gotoParentDirectory(&cwd_sdmc);
-        if (titleTitle_set)
+        if (titleTitle_set > -1)
         {
             gotoParentDirectory(&cwd_sdmc);
         }
@@ -778,7 +778,7 @@ int main()
         gotoxy(0,10);
         int i;
         for (i=0;i<BOTTOM_WIDTH;i++) { printf(" "); }
-		if (!titleTitle_set){
+		if (titleTitle_set < 0){
 			if (tid2 != 0){
 				lsTitle* currentTitle = firstTitle;
 				int i = 0;
@@ -794,7 +794,7 @@ int main()
 				}
 			}
 		}
-        if (!titleTitle_set)
+        if (titleTitle_set < 0)
             nthTitleInList(titleTitle_set,mediatype,titleTitle,&tid);
         AM_GetTitleProductCode(mediatype,tid,productCodeBuffer);
         strncpy(productCode,productCodeBuffer,9);
@@ -859,13 +859,13 @@ int main()
                 printf(productCode);
                 printf(" - %016llX", tid);
             }
-            if(hidKeysDown() & KEY_A)
+            if(hidKeysDown() & KEY_A || titleTitle_set > -1)
             {
                 printInstructions();
                 printTarget();
                 previous_state = machine_state;
                 machine_state = SELECT_SDMC;
-                if (canHasConsole == 2 && !titleTitle_set)
+                if (canHasConsole == 2 && titleTitle_set < 0)
                 {
                     debugOut("Trying to rename dump directory");
                     char tempPath[MAX_PATH_LENGTH] = {0};
