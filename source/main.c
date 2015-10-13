@@ -599,6 +599,23 @@ int main()
         }
         fclose (pFile);
 */
+	    getTitleList(mediatype,&titleTitles_available);
+		if (!titleTitle_set){
+			if (tid2 != 0){
+				lsTitle* currentTitle = firstTitle;
+				int i = 0;
+				while(currentTitle != NULL){
+					if (currentTitle->thisTitle == tid2){
+						titleTitle_set = i;
+						getTitleTitle(tid2, mediatype, titleTitle);
+						tid = tid2;
+						break;
+					}
+					currentTitle = currentTitle->nextTitle;
+					i++;
+				}
+			}
+		}
         AM_GetTitleProductCode(mediatype,tid2,productCodeBuffer);
         strncpy(productCode,productCodeBuffer,9);
         secureGameFromProductCode(productCode);
@@ -723,7 +740,7 @@ int main()
     
     consoleSelect(&titleBar);
     textcolour(TEAL);
-    printf("svdt 0.10.42b, meladroit/willidleaway/suloku\n");
+    printf("svdt 0.10.42c, meladroit/willidleaway/suloku\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);
@@ -756,25 +773,27 @@ int main()
         machine_state = SET_TARGET_TITLE;
     if (machine_state == SET_TARGET_TITLE)
     {
-        getTitleList(mediatype,&titleTitles_available);
+        //getTitleList(mediatype,&titleTitles_available);
         consoleSelect(&statusBar);
         gotoxy(0,10);
         int i;
         for (i=0;i<BOTTOM_WIDTH;i++) { printf(" "); }
-        if (tid2 != 0){
-            lsTitle* currentTitle = firstTitle;
-            int i = 0;
-            while(currentTitle != NULL){
-                if (currentTitle->thisTitle == tid2){
-                    titleTitle_set = i;
-                    getTitleTitle(tid2, mediatype, titleTitle);
-                    tid = tid2;
-                    break;
-                }
-                currentTitle = currentTitle->nextTitle;
-                i++;
-            }
-        }
+		if (!titleTitle_set){
+			if (tid2 != 0){
+				lsTitle* currentTitle = firstTitle;
+				int i = 0;
+				while(currentTitle != NULL){
+					if (currentTitle->thisTitle == tid2){
+						titleTitle_set = i;
+						getTitleTitle(tid2, mediatype, titleTitle);
+						tid = tid2;
+						break;
+					}
+					currentTitle = currentTitle->nextTitle;
+					i++;
+				}
+			}
+		}
         if (!titleTitle_set)
             nthTitleInList(titleTitle_set,mediatype,titleTitle,&tid);
         AM_GetTitleProductCode(mediatype,tid,productCodeBuffer);
@@ -842,12 +861,11 @@ int main()
             }
             if(hidKeysDown() & KEY_A)
             {
-                titleTitle_set = 1;
                 printInstructions();
                 printTarget();
                 previous_state = machine_state;
                 machine_state = SELECT_SDMC;
-                if (canHasConsole == 2)
+                if (canHasConsole == 2 && !titleTitle_set)
                 {
                     debugOut("Trying to rename dump directory");
                     char tempPath[MAX_PATH_LENGTH] = {0};
@@ -866,6 +884,7 @@ int main()
                         printf("Failed with result code %08x",(unsigned int)res);
                     } else { debugOutSuccess("Success!"); }
                 }
+                titleTitle_set = 1;
                 scanDir(&cwd_sdmc,&sdmcArchive,&sdmcFsHandle);
                 clearTitleList();
                 // if we're here, then mediatype!=2, so ...

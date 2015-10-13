@@ -22,7 +22,7 @@ const char const secureProductCodes[PRECONF_GAMES][16] = {"CTR-P-EGD",
     "CTR-P-EKJ", "CTR-P-EK2",
     "CTR-P-ECR", "CTR-P-ECL"}; // minus region
 const char* const pokeRumbleWorldCode = "CTR-N-KCF";
-const char* const MH4UCode = "CTR-P-BFG";
+const char* const MH4UCode = "XXX-X-XXX"; //Monster Hunter 4 Ultimate product code = "CTR-P-BFG", disabled until we know for sure it uses secure value.
 
 char configProductCode[9] = {0};
 
@@ -617,7 +617,8 @@ Result getMH4USecureValue()
 	}
 	if (res != 0 ) return res;
 
-	MH4U_decryptBuff(&buffer, size);
+	if (!MH4U_decryptBuff(&buffer, size))
+		return 1;
         
     memcpy((void*)secureValue,(void*)(buffer+8+0x112),8);
     secureValueSet = 1;
