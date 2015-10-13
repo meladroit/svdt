@@ -577,9 +577,9 @@ int main()
         getTitleTitle(0x0,2,titleTitle);
         titleTitle_set = 1;
     } else {
-		aptOpenSession();
-		APT_GetProgramID(NULL, &tid2);
-		aptCloseSession();
+        aptOpenSession();
+        APT_GetProgramID(NULL, &tid2);
+        aptCloseSession();
 /*
         //Fetch title from /svdt/tid.bin
         FILE * pFile;
@@ -599,23 +599,23 @@ int main()
         }
         fclose (pFile);
 */
-	    getTitleList(mediatype,&titleTitles_available);
-		if (titleTitle_set < 0){
-			if (tid2 != 0){
-				lsTitle* currentTitle = firstTitle;
-				int i = 0;
-				while(currentTitle != NULL){
-					if (currentTitle->thisTitle == tid2){
-						titleTitle_set = i;
-						getTitleTitle(tid2, mediatype, titleTitle);
-						tid = tid2;
-						break;
-					}
-					currentTitle = currentTitle->nextTitle;
-					i++;
-				}
-			}
-		}
+        getTitleList(mediatype,&titleTitles_available);
+        if (titleTitle_set < 0){
+            if (tid2 != 0){
+                lsTitle* currentTitle = firstTitle;
+                int i = 0;
+                while(currentTitle != NULL){
+                    if (currentTitle->thisTitle == tid2){
+                        titleTitle_set = i;
+                        getTitleTitle(tid2, mediatype, titleTitle);
+                        tid = tid2;
+                        break;
+                    }
+                    currentTitle = currentTitle->nextTitle;
+                    i++;
+                }
+            }
+        }
         AM_GetTitleProductCode(mediatype,tid2,productCodeBuffer);
         strncpy(productCode,productCodeBuffer,9);
         secureGameFromProductCode(productCode);
@@ -778,22 +778,22 @@ int main()
         gotoxy(0,10);
         int i;
         for (i=0;i<BOTTOM_WIDTH;i++) { printf(" "); }
-		if (titleTitle_set < 0){
-			if (tid2 != 0){
-				lsTitle* currentTitle = firstTitle;
-				int i = 0;
-				while(currentTitle != NULL){
-					if (currentTitle->thisTitle == tid2){
-						titleTitle_set = i;
-						getTitleTitle(tid2, mediatype, titleTitle);
-						tid = tid2;
-						break;
-					}
-					currentTitle = currentTitle->nextTitle;
-					i++;
-				}
-			}
-		}
+        if (titleTitle_set < 0){
+            if (tid2 != 0){
+                lsTitle* currentTitle = firstTitle;
+                int i = 0;
+                while(currentTitle != NULL){
+                    if (currentTitle->thisTitle == tid2){
+                        titleTitle_set = i;
+                        getTitleTitle(tid2, mediatype, titleTitle);
+                        tid = tid2;
+                        break;
+                    }
+                    currentTitle = currentTitle->nextTitle;
+                    i++;
+                }
+            }
+        }
         if (titleTitle_set < 0)
             nthTitleInList(titleTitle_set,mediatype,titleTitle,&tid);
         AM_GetTitleProductCode(mediatype,tid,productCodeBuffer);
@@ -817,6 +817,7 @@ int main()
             
     int heldU = 0;
     int heldD = 0;
+    bool firstloop = false;
     while (aptMainLoop())
     {
         hidScanInput();
@@ -859,7 +860,7 @@ int main()
                 printf(productCode);
                 printf(" - %016llX", tid);
             }
-            if(hidKeysDown() & KEY_A || titleTitle_set > -1)
+            if(hidKeysDown() & KEY_A || (titleTitle_set > -1 && !firstloop))
             {
                 printInstructions();
                 printTarget();
@@ -921,6 +922,7 @@ int main()
             // Flush and swap framebuffers
             gfxFlushBuffers();
             gfxSwapBuffers();
+            firstloop = true;
             continue;
         }
         if(machine_state == CONFIRM_SECURE_VALUE)
@@ -1253,10 +1255,10 @@ int main()
                         gotoParentDirectory(ccwd);
                         debugOut("Navigating to parent directory.");
                         cwd_needs_update = 1;
-					    break;
+                        break;
                     }
-					if (ccwd->lsOffset == 0)
-						break;
+                    if (ccwd->lsOffset == 0)
+                        break;
                 default: ;
                     lsLine* selection = ccwd->firstLine;
                     int i;
