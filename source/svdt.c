@@ -42,7 +42,9 @@ void gotoSubDirectory(lsDir* dir, char* basename)
     cwd = strcat(cwd,basename);
     if (cwd[strlen(cwd+1)] != '/')
     {
-        //printf("\nappending slash");
+		if(canHasConsole){
+			//printf("\nappending slash");
+		}
         cwd = strcat(cwd,"/");
     }
     if (canHasConsole)
@@ -233,6 +235,7 @@ Result getTitleTitle(u64 tid, u8 mediatype, char* titleTitle)
     {
         titleTitle[forbiddenChar-titleTitle] = ' ';
     }
+	if (titleTitle[strlen(titleTitle)-1] == ' ') titleTitle[strlen(titleTitle)-1] = '\0';
     return ret;
 }
 
