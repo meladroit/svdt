@@ -799,7 +799,7 @@ int main()
     
     consoleSelect(&titleBar);
     textcolour(TEAL);
-    printf("svdt 0.10.5, meladroit/willidleaway/suloku\n");
+    printf("svdt 0.10.42d, meladroit/willidleaway/suloku\n");
     printf("a hacked-together save data explorer/manager\n");
     gotoxy(CURSOR_WIDTH,2);
     textcolour(GREY);
@@ -1285,12 +1285,12 @@ int main()
             curArchive = &sdmcArchive;
             redrawCursor(&cursor_y,ccwd);
         }
-        if(hidKeysDown() & (KEY_ZR))
+        if(hidKeysDown() & (KEY_ZR | KEY_CSTICK_DOWN))
         {
             cursor_y+=5;
             redrawCursor(&cursor_y,ccwd);
             heldU = 0;
-        } else if (hidKeysHeld() & (KEY_ZR)) {
+        } else if (hidKeysHeld() & (KEY_ZR | KEY_CSTICK_DOWN)) {
             heldU++;
             if (heldU > HELD_THRESHOLD)
             {
@@ -1299,12 +1299,12 @@ int main()
                 heldU = 0;
             }
         } 
-        if(hidKeysDown() & (KEY_ZL))
+        if(hidKeysDown() & (KEY_ZL | KEY_CSTICK_UP))
         {
             cursor_y-=5;
             redrawCursor(&cursor_y,ccwd);
             heldU = 0;
-        } else if (hidKeysHeld() & (KEY_ZL)) {
+        } else if (hidKeysHeld() & (KEY_ZL | KEY_CSTICK_UP)) {
             heldU++;
             if (heldU > HELD_THRESHOLD)
             {
